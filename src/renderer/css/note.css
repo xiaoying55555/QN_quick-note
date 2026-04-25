@@ -1,0 +1,250 @@
+html,
+body {
+  background: transparent;
+}
+
+.note-shell {
+  width: 100vw;
+  height: 100vh;
+  padding: 14px;
+}
+
+.note-card {
+  width: 100%;
+  height: 100%;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-strong);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px 6px;
+  background: #F8F8F8;
+  position: relative;
+}
+
+.note-header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 120px);
+  color: #8fb23e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.note-collection-select {
+  max-width: 104px;
+  border: none;
+  background: transparent;
+  color: #8fb23e;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  text-align-last: right;
+  outline: none;
+  cursor: pointer;
+}
+
+.note-header-title {
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(162, 200, 51, 0.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms var(--ease-out), background 150ms var(--ease-out), opacity 150ms var(--ease-out);
+}
+
+.pin-toggle:hover {
+  transform: scale(1.05);
+}
+
+.pin-toggle:active {
+  transform: scale(0.94);
+}
+
+.pin-toggle.active {
+  background: rgba(162, 200, 51, 1);
+}
+
+.pin-toggle-icon {
+  width: 10px;
+  height: 12px;
+  display: block;
+}
+
+.note-title {
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+}
+
+.note-body {
+  flex: 1;
+  padding: 0 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-thumb {
+  width: 58px;
+  height: 58px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #ececec;
+}
+
+.attachment-image-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachment-thumb-btn {
+  border-radius: 8px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.audio-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 18px) / 3.5);
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.audio-chip {
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: #f2f5e8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  color: #506021;
+  transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.audio-chip:hover,
+.audio-chip.active {
+  background: rgba(168, 201, 64, 0.24);
+}
+
+.audio-chip-label {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.audio-chip-time {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.toolbar {
+  display: none;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.toolbar.active {
+  display: flex;
+}
+
+.toolbar .tool-btn {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #f0f2e6;
+  transition: transform 150ms var(--ease-out), background 150ms var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar .tool-btn:hover {
+  background: rgba(168, 201, 64, 0.2);
+  transform: translateY(-1px);
+}
+
+.content-editor {
+  flex: 1;
+  min-height: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px;
+  font-size: var(--content-font-size, 13px);
+  line-height: 1.6;
+  overflow-y: auto;
+}
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.tag-row input {
+  border: none;
+  border-bottom: 1px solid #d6d8cd;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+.note-footer {
+  padding: 0 14px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.save-btn {
+  background: #A8C940;
+  color: #fff;
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.save-btn:hover {
+  filter: brightness(0.98);
+}
+
+.tool-btn img {
+  width: 18px;
+  height: 18px;
+}

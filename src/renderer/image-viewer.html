@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image Viewer</title>
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/image-viewer.css" />
+  </head>
+  <body>
+    <div class="viewer-shell">
+      <div class="viewer-topbar drag-region">
+        <div id="viewerCount" class="viewer-count no-drag">1 / 1</div>
+        <button id="closeViewerBtn" class="viewer-close no-drag" aria-label="Close">&times;</button>
+      </div>
+      <div class="viewer-stage">
+        <button id="prevImageBtn" class="viewer-nav viewer-nav-left no-drag" aria-label="Previous">&#8249;</button>
+        <div class="viewer-canvas">
+          <img id="viewerImage" class="viewer-image" alt="Preview image" />
+        </div>
+        <button id="nextImageBtn" class="viewer-nav viewer-nav-right no-drag" aria-label="Next">&#8250;</button>
+      </div>
+    </div>
+    <script src="./js/image-viewer.js"></script>
+  </body>
+</html>

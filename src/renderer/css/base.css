@@ -1,0 +1,106 @@
+:root {
+  --bg: #F5F5F0;
+  --panel: #FFFFFF;
+  --panel-soft: #F9FAF4;
+  --text: #1F1F1F;
+  --muted: #7B7F73;
+  --accent: #A8C940;
+  --accent-soft: rgba(168, 201, 64, 0.3);
+  --shadow-strong: 0 16px 30px rgba(0, 0, 0, 0.18);
+  --shadow-soft: 0 6px 16px rgba(0, 0, 0, 0.08);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+* {
+  box-sizing: border-box;
+  font-family: "Segoe UI", "Microsoft Yahei", sans-serif;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+}
+
+button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+[contenteditable="true"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.drag-region button,
+.drag-region input,
+.drag-region select,
+.drag-region img {
+  -webkit-app-region: no-drag;
+}
+
+.icon-btn,
+.icon-btn *,
+#minimizeBtn,
+#minimizeBtn *,
+#sortBtn,
+#sortBtn *,
+#selectBtn,
+#selectBtn * {
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: transform 150ms var(--ease-out), background 150ms var(--ease-out);
+}
+
+.icon-btn:hover {
+  background: rgba(168, 201, 64, 0.15);
+  transform: scale(1.05);
+}
+
+.icon-btn img {
+  width: 18px;
+  height: 18px;
+}
+
+.pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

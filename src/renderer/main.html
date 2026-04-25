@@ -1,0 +1,138 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: file:" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QUICKnote</title>
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/main.css" />
+  </head>
+  <body>
+    <div class="main-shell">
+      <aside class="sidebar">
+        <div class="logo">QUICKnote</div>
+        <div id="collectionList" class="collection-list">
+          <div class="collection-item active">
+            <span>全部笔记</span>
+            <span class="collection-dot"></span>
+          </div>
+        </div>
+        <div id="collectionInputWrap" class="collection-input-wrap"></div>
+        <div id="collectionContextMenu" class="collection-context-menu hidden">
+          <button id="renameCollectionBtn" class="collection-context-item">重命名</button>
+          <button id="deleteCollectionBtn" class="collection-context-item danger">删除</button>
+        </div>
+        <img id="addCollectionBtn" class="add-collection-btn no-drag" src="./assets/icons/新增收藏夹.svg" alt="添加收藏夹" />
+        <div class="sidebar-footer">
+          <button id="openSettings" class="icon-btn no-drag" aria-label="设置">
+            <img src="./assets/icons/设置.svg" alt="" />
+          </button>
+        </div>
+      </aside>
+      <section class="main-area">
+        <header class="topbar drag-region">
+          <div class="search no-drag">
+            <div class="search-pill">
+              <span class="search-icon">🔍</span>
+              <input id="searchInput" type="text" placeholder="搜索" />
+            </div>
+          </div>
+          <div class="topbar-actions no-drag">
+            <button id="sortBtn" class="icon-btn no-drag" aria-label="排序">
+              <img src="./assets/icons/排序按键.svg" alt="" />
+            </button>
+            <div id="sortMenu" class="sort-menu hidden">
+              <button data-sort-mode="updatedAt" class="sort-menu-item">按时间排序</button>
+              <button data-sort-mode="custom" class="sort-menu-item">自定义排序</button>
+            </div>
+            <button id="selectBtn" class="icon-btn no-drag" aria-label="选择">
+              <img src="./assets/icons/选择.svg" alt="" />
+            </button>
+            <button id="minimizeBtn" class="icon-btn no-drag" aria-label="最小化">
+              <img src="./assets/icons/右上角缩小关闭按键.svg" alt="" />
+            </button>
+          </div>
+        </header>
+        <div id="notesArea" class="notes-area">
+          <div class="count-label">数量 <span id="noteCount">0</span></div>
+          <div id="scrollIndicator" class="scroll-indicator"></div>
+          <div id="notesScroll" class="notes-scroll scrollbar-hidden">
+            <div id="notesGrid" class="notes-grid">
+              <div class="note-card new-note">
+                <img src="./assets/icons/新增笔记1.svg" alt="新增笔记" class="new-note-icon" />
+              </div>
+            </div>
+          </div>
+        <div id="selectionBar" class="selection-bar hidden">
+          <span id="selectionCount">已选择 0 条</span>
+          <div class="selection-actions">
+            <select id="moveCollectionSelect" class="selection-select"></select>
+            <button id="moveSelectionBtn" class="selection-btn secondary">移动</button>
+              <button id="exportSelectionBtn" class="selection-btn secondary">导出</button>
+              <button id="cancelSelectionBtn" class="selection-btn secondary">取消</button>
+            <button id="deleteSelectionBtn" class="selection-btn danger">删除</button>
+          </div>
+        </div>
+        <div id="collectionDeleteModal" class="collection-delete-modal hidden">
+          <div class="collection-delete-dialog">
+            <div class="collection-delete-title">删除收藏夹？</div>
+            <div class="collection-delete-copy">删除后，该收藏夹及其中全部笔记将被删除，且无法恢复。</div>
+            <div class="collection-delete-actions">
+              <button id="cancelCollectionDeleteBtn" class="selection-btn secondary">取消</button>
+              <button id="confirmCollectionDeleteBtn" class="selection-btn danger">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </section>
+      <aside id="settingsPanel" class="settings-panel hidden">
+        <div class="settings-page">
+          <div class="settings-page-header">
+            <div>
+              <div class="settings-title">设置</div>
+              <div class="settings-subtitle">在这里管理快捷键、存储、导出与备份。</div>
+            </div>
+            <button id="closeSettingsBtn" class="settings-close-btn">返回主页</button>
+          </div>
+          <div class="settings-grid">
+            <section class="settings-card">
+              <div class="settings-card-title">快捷键设置</div>
+              <div class="settings-label">全局快捷键</div>
+              <div class="settings-row">
+                <input id="shortcutInput" class="settings-input" placeholder="Ctrl+Shift+N" />
+                <button id="saveShortcutBtn" class="settings-btn accent">保存</button>
+              </div>
+              <div class="settings-help">保存后会立即重新注册全局快捷键。</div>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-title">存储与备份</div>
+              <div class="settings-label">存储路径</div>
+              <div id="dataPathValue" class="settings-value"></div>
+              <div class="settings-row wrap">
+                <button id="openDataFolderBtn" class="settings-btn">打开文件夹</button>
+                <button id="exportAllBtn" class="settings-btn">导出全部笔记</button>
+                <button id="backupDataBtn" class="settings-btn">创建备份</button>
+              </div>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-title">其他项目</div>
+              <label class="settings-toggle">
+                <input id="themeToggle" type="checkbox" />
+                使用柔和背景
+              </label>
+              <label class="settings-toggle">
+                <input id="rememberModeToggle" type="checkbox" />
+                记住上次排序与收藏夹
+              </label>
+              <div class="settings-help">“导出”会生成可阅读的 Markdown 文件，适合留档与分享。</div>
+            </section>
+          </div>
+          <div id="settingsStatus" class="settings-status"></div>
+        </div>
+      </aside>
+      <div id="buildStamp" class="build-stamp"></div>
+    </div>
+    <script src="./js/main.js"></script>
+  </body>
+</html>
