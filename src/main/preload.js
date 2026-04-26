@@ -8,6 +8,8 @@ const invokeChannels = new Set([
   'app:show-note',
   'app:show-quicknote',
   'app:hide-quicknote',
+  'app:submit-ocr-selection',
+  'app:cancel-ocr-selection',
   'app:hide-note',
   'app:update-note-window-context',
   'app:minimize-main',

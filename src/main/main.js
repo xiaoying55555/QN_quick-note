@@ -1,14 +1,23 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, dialog, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, dialog, shell, screen, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const store = require('./store');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 let mainWindow;
 let quicknoteWindow;
 let tray;
 let imageViewerWindow;
+let ocrSelectionWindow;
 const noteWindows = new Map();
+
+const QUICKNOTE_WIDTH = 419;
+const QUICKNOTE_HEIGHT = 391;
+const OCR_SHORTCUT = 'Alt+Shift+S';
 
 function createWindowOptions(extra = {}) {
   return {
@@ -220,20 +229,49 @@ function createTray() {
   });
 }
 
-function showQuicknote() {
+function getQuicknoteAnchorBounds() {
+  const point = screen.getCursorScreenPoint();
+  return screen.getDisplayNearestPoint(point).workArea;
+}
+
+function positionQuicknoteWindow() {
+  if (!quicknoteWindow || quicknoteWindow.isDestroyed()) return;
+  const bounds = getQuicknoteAnchorBounds();
+  const margin = 20;
+  const x = Math.round(bounds.x + bounds.width - QUICKNOTE_WIDTH - margin);
+  const y = Math.round(bounds.y + bounds.height - QUICKNOTE_HEIGHT - margin);
+  quicknoteWindow.setBounds({
+    x: Math.max(bounds.x, x),
+    y: Math.max(bounds.y, y),
+    width: QUICKNOTE_WIDTH,
+    height: QUICKNOTE_HEIGHT
+  });
+}
+
+function showQuicknote(payload = {}) {
   if (!quicknoteWindow || quicknoteWindow.isDestroyed()) {
     createQuicknoteWindow();
   }
-  const bounds = (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible())
-    ? mainWindow.getBounds()
-    : screen.getPrimaryDisplay().workArea;
-  const margin = 20;
-  const x = Math.round(bounds.x + bounds.width - 419 - margin);
-  const y = Math.round(bounds.y + bounds.height - 391 - margin);
-  quicknoteWindow.setPosition(Math.max(bounds.x, x), Math.max(bounds.y, y));
-  quicknoteWindow.show();
-  quicknoteWindow.focus();
-  quicknoteWindow.webContents.send('quicknote:show');
+  positionQuicknoteWindow();
+  const showPayload = {
+    prefillText: '',
+    source: 'manual',
+    forceExpanded: false,
+    ...payload
+  };
+  const dispatch = () => {
+    if (!quicknoteWindow || quicknoteWindow.isDestroyed()) return;
+    positionQuicknoteWindow();
+    quicknoteWindow.webContents.send('quicknote:show', showPayload);
+    quicknoteWindow.show();
+    quicknoteWindow.focus();
+  };
+  if (quicknoteWindow.webContents.isLoading()) {
+    quicknoteWindow.webContents.once('did-finish-load', dispatch);
+  } else {
+    dispatch();
+  }
+  return true;
 }
 
 function registerShortcut() {
@@ -241,6 +279,9 @@ function registerShortcut() {
   globalShortcut.unregisterAll();
   globalShortcut.register(config.shortcut || 'Ctrl+Shift+N', () => {
     showQuicknote();
+  });
+  globalShortcut.register(OCR_SHORTCUT, () => {
+    startOcrSelection();
   });
 }
 
@@ -254,6 +295,116 @@ function broadcast(channel, payload) {
       win.webContents.send(channel, payload);
     }
   });
+}
+
+function createOcrSelectionWindow(display) {
+  ocrSelectionWindow = new BrowserWindow(createWindowOptions({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    movable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    hasShadow: false
+  }));
+  ocrSelectionWindow.__displayId = display.id;
+  ocrSelectionWindow.loadFile(path.join(__dirname, '../renderer/ocr-selection.html'));
+  ocrSelectionWindow.once('ready-to-show', () => {
+    if (!ocrSelectionWindow || ocrSelectionWindow.isDestroyed()) return;
+    ocrSelectionWindow.show();
+    ocrSelectionWindow.focus();
+  });
+  ocrSelectionWindow.on('closed', () => {
+    ocrSelectionWindow = null;
+  });
+}
+
+function startOcrSelection() {
+  if (ocrSelectionWindow && !ocrSelectionWindow.isDestroyed()) {
+    ocrSelectionWindow.focus();
+    return;
+  }
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  createOcrSelectionWindow(display);
+}
+
+async function captureDisplayRegion(displayId, region) {
+  const display = screen.getAllDisplays().find(item => item.id === displayId) || screen.getPrimaryDisplay();
+  const scaleFactor = display.scaleFactor || 1;
+  const captureWidth = Math.round(display.bounds.width * scaleFactor);
+  const captureHeight = Math.round(display.bounds.height * scaleFactor);
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: captureWidth, height: captureHeight }
+  });
+  const source = sources.find(item => item.display_id === String(display.id)) || sources[0];
+  if (!source || source.thumbnail.isEmpty()) {
+    throw new Error('Screen capture unavailable');
+  }
+  return source.thumbnail.crop({
+    x: Math.max(0, Math.round(region.x * scaleFactor)),
+    y: Math.max(0, Math.round(region.y * scaleFactor)),
+    width: Math.max(1, Math.round(region.width * scaleFactor)),
+    height: Math.max(1, Math.round(region.height * scaleFactor))
+  });
+}
+
+async function writeTempCapture(image) {
+  const tempPath = path.join(app.getPath('temp'), 'quicknote-ocr-' + Date.now() + '.png');
+  await fs.promises.writeFile(tempPath, image.toPNG());
+  return tempPath;
+}
+
+async function runWindowsOcr(imagePath) {
+  const escapedPath = imagePath.replace(/'/g, "''");
+  const script = [
+    'Add-Type -AssemblyName System.Runtime.WindowsRuntime',
+    '$null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]',
+    '$null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics.Imaging, ContentType = WindowsRuntime]',
+    '$null = [Windows.Media.Ocr.OcrEngine, Windows.Media.Ocr, ContentType = WindowsRuntime]',
+    '$null = [System.WindowsRuntimeSystemExtensions]',
+    'function Await($task) { [System.WindowsRuntimeSystemExtensions]::AsTask($task).GetAwaiter().GetResult() }',
+    "$file = Await([Windows.Storage.StorageFile]::GetFileFromPathAsync('" + escapedPath + "'))",
+    '$stream = Await($file.OpenAsync([Windows.Storage.FileAccessMode]::Read))',
+    '$decoder = Await([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream))',
+    '$bitmap = Await($decoder.GetSoftwareBitmapAsync())',
+    '$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()',
+    "if ($null -eq $engine) { throw 'OCR engine unavailable' }",
+    '$result = Await($engine.RecognizeAsync($bitmap))',
+    '$result.Text'
+  ].join('; ');
+  const { stdout } = await execFileAsync('C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', ['-NoProfile', '-Command', script], {
+    windowsHide: true,
+    maxBuffer: 1024 * 1024 * 8
+  });
+  return String(stdout || '').trim();
+}
+
+async function handleOcrSelection(displayId, region) {
+  const image = await captureDisplayRegion(displayId, region);
+  const tempPath = await writeTempCapture(image);
+  try {
+    const text = await runWindowsOcr(tempPath);
+    showQuicknote({
+      prefillText: text,
+      source: 'ocr',
+      forceExpanded: text.length > 20
+    });
+    return text;
+  } finally {
+    try {
+      await fs.promises.unlink(tempPath);
+    } catch (_error) {
+      // ignore cleanup failure
+    }
+  }
 }
 
 app.whenReady().then(() => {
@@ -281,6 +432,28 @@ ipcMain.handle('app:get-path', (_event, name) => app.getPath(name));
 ipcMain.handle('app:get-note-window-payload', event => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   return senderWindow?.__notePayload || null;
+});
+
+ipcMain.handle('app:submit-ocr-selection', async (event, region) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const displayId = senderWindow?.__displayId || screen.getPrimaryDisplay().id;
+  if (senderWindow && !senderWindow.isDestroyed()) {
+    senderWindow.destroy();
+  }
+  setTimeout(() => {
+    handleOcrSelection(displayId, region).catch(() => {
+      showQuicknote({ prefillText: '', source: 'ocr', forceExpanded: false });
+    });
+  }, 100);
+  return true;
+});
+
+ipcMain.handle('app:cancel-ocr-selection', event => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (senderWindow && !senderWindow.isDestroyed()) {
+    senderWindow.destroy();
+  }
+  return true;
 });
 
 ipcMain.handle('app:show-note', (_event, payload) => {

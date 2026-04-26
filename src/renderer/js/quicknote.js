@@ -65,10 +65,24 @@ function formatDuration(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function escapeHtml(input) {
+  return String(input || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function textToHtml(text) {
+  return escapeHtml(text).replace(/\n/g, '<br>');
+}
+
 async function resolveAssetUrl(relativePath) {
   return api.resolveAssetUrl(relativePath);
 }
 
+const quicknoteShell = document.getElementById('quicknoteShell');
 const collectionSelect = document.getElementById('collectionSelect');
 const noteSelect = document.getElementById('noteSelect');
 const titleInput = document.getElementById('titleInput');
@@ -79,6 +93,7 @@ const recordBtn = document.getElementById('recordBtn');
 const highlightBtn = document.getElementById('highlightBtn');
 const boldBtn = document.getElementById('boldBtn');
 const saveQuicknoteBtn = document.getElementById('saveQuicknoteBtn');
+const expandQuicknoteBtn = document.getElementById('expandQuicknoteBtn');
 
 let collections = [];
 let notes = [];
@@ -88,6 +103,7 @@ let recorder = null;
 let recordStart = 0;
 let currentAudioPlayer = null;
 let currentAudioButton = null;
+let currentMode = 'mini';
 
 function stopActiveAudio() {
   if (currentAudioPlayer) {
@@ -125,21 +141,37 @@ async function openImageViewer(imageAttachments, startIndex) {
   });
 }
 
-async function loadData() {
+function getRealCollections() {
+  return collections.filter(col => col && col.id && col.name !== '\u5168\u90e8\u7b14\u8bb0');
+}
+
+function getDefaultCollectionId(preferredId) {
+  const realCollections = getRealCollections();
+  if (preferredId && realCollections.some(col => col.id === preferredId)) {
+    return preferredId;
+  }
+  const unfiled = realCollections.find(col => col.name === '\u672a\u5f52\u6863');
+  return unfiled?.id || realCollections[0]?.id || '';
+}
+
+async function loadData(preferredCollectionId) {
   const data = await api.invoke('data:get');
   const config = await api.invoke('data:get-config');
   collections = data.collections || [];
   notes = data.notes || [];
-  renderCollections(config.lastCollectionId || collections[0]?.id);
+  const selectedId = getDefaultCollectionId(preferredCollectionId || config.lastCollectionId);
+  renderCollections(selectedId);
 }
 
 function renderCollections(selectedId) {
+  const realCollections = getRealCollections();
+  const resolvedId = getDefaultCollectionId(selectedId);
   collectionSelect.innerHTML = '';
-  collections.forEach(col => {
+  realCollections.forEach(col => {
     const option = document.createElement('option');
     option.value = col.id;
     option.textContent = col.name;
-    if (col.id === selectedId) option.selected = true;
+    if (col.id === resolvedId) option.selected = true;
     collectionSelect.appendChild(option);
   });
   renderNotes();
@@ -205,13 +237,60 @@ function renderAttachments() {
   }
 }
 
-function resetForm() {
+function resetForm({ preserveCollection = true } = {}) {
+  const currentCollectionId = preserveCollection ? collectionSelect.value : getDefaultCollectionId();
   contentEditor.innerHTML = '';
   titleInput.value = '';
   attachments = [];
   noteSelect.value = 'new';
   stopActiveAudio();
   renderAttachments();
+  if (preserveCollection && currentCollectionId) {
+    collectionSelect.value = currentCollectionId;
+    renderNotes();
+  }
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  quicknoteShell.classList.toggle('mini', mode === 'mini');
+  quicknoteShell.classList.toggle('expanded', mode === 'expanded');
+  saveQuicknoteBtn.textContent = mode === 'mini' ? '\u53d1\u9001' : '\u8bb0\u4e0b\u6765';
+}
+
+function toggleMode(forceMode) {
+  setMode(forceMode || (currentMode === 'mini' ? 'expanded' : 'mini'));
+  requestAnimationFrame(() => {
+    contentEditor.focus();
+  });
+}
+
+function getEditorText() {
+  return contentEditor.innerText.replace(/\u00a0/g, ' ').trim();
+}
+
+function getEditorHtml() {
+  const html = contentEditor.innerHTML.trim();
+  if (html === '<br>' || html === '<div><br></div>') return '';
+  return html;
+}
+
+function setEditorText(text) {
+  contentEditor.innerHTML = text ? textToHtml(text) : '';
+}
+
+function getVisualLineCount() {
+  const styles = window.getComputedStyle(contentEditor);
+  const lineHeight = parseFloat(styles.lineHeight) || parseFloat(styles.fontSize) * 1.5 || 20;
+  const rawHeight = contentEditor.scrollHeight - parseFloat(styles.paddingTop || '0') - parseFloat(styles.paddingBottom || '0');
+  return Math.max(1, Math.round(rawHeight / lineHeight));
+}
+
+function maybeAutoExpand() {
+  if (currentMode !== 'mini') return;
+  if (getVisualLineCount() > 2) {
+    setMode('expanded');
+  }
 }
 
 async function handlePaste(event) {
@@ -220,6 +299,9 @@ async function handlePaste(event) {
   event.preventDefault();
   const savedPath = await api.invoke('data:save-image', imageBytes);
   attachments.push({ type: 'image', path: savedPath });
+  if (currentMode === 'mini') {
+    setMode('expanded');
+  }
   renderAttachments();
 }
 
@@ -247,14 +329,14 @@ function stopRecording() {
 }
 
 async function saveNote() {
-  const contentHtml = contentEditor.innerHTML.trim();
-  const contentText = stripHtml(contentHtml).trim();
+  const contentHtml = getEditorHtml();
+  const contentText = getEditorText();
   const rawTitle = titleInput.value.trim();
   const title = rawTitle || contentText.slice(0, 20) || '\u672a\u547d\u540d';
-  const collectionId = collectionSelect.value;
+  const collectionId = getDefaultCollectionId(collectionSelect.value);
   const noteId = noteSelect.value;
 
-  if (!rawTitle && !contentText && attachments.length === 0) return;
+  if (!rawTitle && !contentText && attachments.length === 0) return false;
 
   if (noteId === 'new') {
     await api.invoke('data:create-note', {
@@ -279,6 +361,39 @@ async function saveNote() {
   });
 
   resetForm();
+  setMode('mini');
+  return true;
+}
+
+async function saveAndClose() {
+  const saved = await saveNote();
+  if (!saved) return false;
+  api.invoke('app:hide-quicknote');
+  return true;
+}
+
+function applyShowPayload(payload = {}) {
+  resetForm({ preserveCollection: true });
+  setMode('mini');
+  noteSelect.value = 'new';
+  if (payload.collectionId) {
+    const nextCollectionId = getDefaultCollectionId(payload.collectionId);
+    if (nextCollectionId) {
+      collectionSelect.value = nextCollectionId;
+      renderNotes();
+    }
+  }
+  if (payload.prefillText) {
+    setEditorText(payload.prefillText);
+    if ((payload.prefillText || '').length > 20 || payload.forceExpanded) {
+      setMode('expanded');
+    } else {
+      requestAnimationFrame(() => {
+        maybeAutoExpand();
+      });
+    }
+  }
+  contentEditor.focus();
 }
 
 document.addEventListener('paste', handlePaste);
@@ -289,23 +404,48 @@ collectionSelect.addEventListener('change', () => {
 
 closeQuicknote.addEventListener('click', () => {
   resetForm();
+  setMode('mini');
   api.invoke('app:hide-quicknote');
 });
 
-document.addEventListener('keydown', event => {
+contentEditor.addEventListener('input', () => {
+  requestAnimationFrame(() => {
+    maybeAutoExpand();
+  });
+});
+
+contentEditor.addEventListener('keydown', async event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
-    saveNote();
+    event.stopPropagation();
+    await saveAndClose();
     return;
   }
+  if (currentMode === 'mini' && event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    await saveAndClose();
+  }
+});
+
+document.addEventListener('keydown', async event => {
   if (event.key === 'Escape') {
     resetForm();
+    setMode('mini');
     api.invoke('app:hide-quicknote');
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    await saveAndClose();
   }
   if (event.key === 'Enter' && event.ctrlKey) {
-    saveNote();
-    api.invoke('app:hide-quicknote');
+    event.preventDefault();
+    await saveAndClose();
   }
+});
+
+expandQuicknoteBtn.addEventListener('click', () => {
+  toggleMode();
 });
 
 recordBtn.addEventListener('click', async () => {
@@ -327,13 +467,15 @@ boldBtn.addEventListener('click', () => {
 });
 
 saveQuicknoteBtn?.addEventListener('click', async () => {
-  await saveNote();
-  api.invoke('app:hide-quicknote');
+  await saveAndClose();
 });
 
-api.on('data:updated', () => loadData());
-api.on('quicknote:show', () => {
-  noteSelect.value = 'new';
+api.on('data:updated', () => loadData(collectionSelect.value));
+api.on('quicknote:show', async payload => {
+  await loadData(payload?.collectionId);
+  applyShowPayload(payload || {});
 });
 
-loadData();
+loadData().then(() => {
+  setMode('mini');
+});

@@ -7,17 +7,30 @@ body {
   width: 100vw;
   height: 100vh;
   padding: 14px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
 }
 
 .quicknote-card {
   width: 100%;
   height: 100%;
+  margin-top: auto;
   background: var(--panel);
   border-radius: var(--radius);
   box-shadow: var(--shadow-strong);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: height 150ms var(--ease-out);
+}
+
+.quicknote-shell.mini .quicknote-card {
+  height: 108px;
+}
+
+.quicknote-shell.expanded .quicknote-card {
+  height: 100%;
 }
 
 .quicknote-header {
@@ -29,6 +42,9 @@ body {
 }
 
 .archive-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   color: var(--accent);
   font-weight: 600;
@@ -40,6 +56,19 @@ body {
   color: var(--accent);
   font-weight: 600;
   font-size: 12px;
+  outline: none;
+}
+
+.path-divider {
+  color: rgba(143, 178, 62, 0.7);
+}
+
+.quicknote-shell.mini .archive-select {
+  font-size: 11px;
+}
+
+.quicknote-shell.mini .archive-select select {
+  font-size: 11px;
 }
 
 .quicknote-body {
@@ -68,6 +97,39 @@ body {
   line-height: 1.6;
   overflow-y: auto;
   overflow-x: hidden;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.content-editor[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(104, 112, 80, 0.55);
+  pointer-events: none;
+}
+
+.quicknote-shell.mini .quicknote-body {
+  padding: 0 12px 8px;
+}
+
+.quicknote-shell.mini .title-input,
+.quicknote-shell.mini .attachments,
+.quicknote-shell.mini #recordBtn,
+.quicknote-shell.mini #highlightBtn,
+.quicknote-shell.mini #boldBtn,
+.quicknote-shell.mini #noteSelect,
+.quicknote-shell.mini #notePathDivider {
+  display: none;
+}
+
+.quicknote-shell.mini .content-editor {
+  flex: 0 0 auto;
+  min-height: 42px;
+  max-height: 42px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  overflow: hidden;
 }
 
 .attachments {
@@ -140,6 +202,30 @@ body {
   padding: 10px 16px 14px;
 }
 
+.quicknote-shell.mini .quicknote-footer {
+  padding: 8px 12px 12px;
+  gap: 8px;
+}
+
+.expand-quicknote-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #f0f2e6;
+  color: #566b22;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.expand-quicknote-btn:hover {
+  background: rgba(168, 201, 64, 0.2);
+  transform: translateY(-1px);
+}
+
 .save-quicknote-btn {
   margin-left: auto;
   min-width: 78px;
@@ -154,6 +240,12 @@ body {
 
 .save-quicknote-btn:hover {
   background: #97b737;
+}
+
+.quicknote-shell.mini .save-quicknote-btn {
+  min-width: 62px;
+  height: 32px;
+  border-radius: 12px;
 }
 
 .toolbar-btn {
