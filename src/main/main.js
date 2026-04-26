@@ -368,17 +368,20 @@ async function runWindowsOcr(imagePath) {
     'Add-Type -AssemblyName System.Runtime.WindowsRuntime',
     '$null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]',
     '$null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics.Imaging, ContentType = WindowsRuntime]',
+    '$null = [Windows.Graphics.Imaging.SoftwareBitmap, Windows.Graphics.Imaging, ContentType = WindowsRuntime]',
     '$null = [Windows.Media.Ocr.OcrEngine, Windows.Media.Ocr, ContentType = WindowsRuntime]',
     '$null = [System.WindowsRuntimeSystemExtensions]',
     'function Await($task) { [System.WindowsRuntimeSystemExtensions]::AsTask($task).GetAwaiter().GetResult() }',
     "$file = Await([Windows.Storage.StorageFile]::GetFileFromPathAsync('" + escapedPath + "'))",
     '$stream = Await($file.OpenAsync([Windows.Storage.FileAccessMode]::Read))',
     '$decoder = Await([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream))',
-    '$bitmap = Await($decoder.GetSoftwareBitmapAsync())',
+    '$bitmap = Await($decoder.GetSoftwareBitmapAsync([Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8, [Windows.Graphics.Imaging.BitmapAlphaMode]::Premultiplied))',
     '$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()',
+    "if ($null -eq $engine) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage((New-Object Windows.Globalization.Language('zh-CN'))) }",
+    "if ($null -eq $engine) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage((New-Object Windows.Globalization.Language('en-US'))) }",
     "if ($null -eq $engine) { throw 'OCR engine unavailable' }",
     '$result = Await($engine.RecognizeAsync($bitmap))',
-    '$result.Text'
+    '($result.Lines | ForEach-Object { $_.Text }) -join [Environment]::NewLine'
   ].join('; ');
   const { stdout } = await execFileAsync('C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', ['-NoProfile', '-Command', script], {
     windowsHide: true,
@@ -392,6 +395,9 @@ async function handleOcrSelection(displayId, region) {
   const tempPath = await writeTempCapture(image);
   try {
     const text = await runWindowsOcr(tempPath);
+    if (!text.trim()) {
+      throw new Error('OCR no text detected');
+    }
     showQuicknote({
       prefillText: text,
       source: 'ocr',
@@ -442,7 +448,7 @@ ipcMain.handle('app:submit-ocr-selection', async (event, region) => {
   }
   setTimeout(() => {
     handleOcrSelection(displayId, region).catch(() => {
-      showQuicknote({ prefillText: '', source: 'ocr', forceExpanded: false });
+      showQuicknote({ prefillText: 'OCR no text detected', source: 'ocr', forceExpanded: false });
     });
   }, 100);
   return true;

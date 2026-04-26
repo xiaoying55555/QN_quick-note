@@ -255,7 +255,7 @@ function setMode(mode) {
   currentMode = mode;
   quicknoteShell.classList.toggle('mini', mode === 'mini');
   quicknoteShell.classList.toggle('expanded', mode === 'expanded');
-  saveQuicknoteBtn.textContent = mode === 'mini' ? '\u53d1\u9001' : '\u8bb0\u4e0b\u6765';
+  saveQuicknoteBtn.textContent = '\u8bb0\u4e0b\u4e86';
 }
 
 function toggleMode(forceMode) {
@@ -421,10 +421,6 @@ contentEditor.addEventListener('keydown', async event => {
     await saveAndClose();
     return;
   }
-  if (currentMode === 'mini' && event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault();
-    await saveAndClose();
-  }
 });
 
 document.addEventListener('keydown', async event => {
@@ -437,11 +433,7 @@ document.addEventListener('keydown', async event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     await saveAndClose();
-  }
-  if (event.key === 'Enter' && event.ctrlKey) {
-    event.preventDefault();
-    await saveAndClose();
-  }
+  }
 });
 
 expandQuicknoteBtn.addEventListener('click', () => {
