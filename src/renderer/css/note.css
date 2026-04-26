@@ -101,10 +101,14 @@ body {
 
 .note-body {
   flex: 1;
+  min-height: 0;
   padding: 0 14px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
 }
 
 .attachments {
@@ -114,20 +118,26 @@ body {
 }
 
 .attachment-thumb {
-  width: 58px;
-  height: 58px;
+  width: 100%;
+  height: 88px;
   border-radius: 8px;
   object-fit: cover;
   background: #ececec;
 }
 
 .attachment-image-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 12px) / 3.5);
   gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .attachment-thumb-btn {
+  width: 100%;
   border-radius: 8px;
   overflow: hidden;
   background: transparent;
@@ -140,6 +150,7 @@ body {
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .audio-chip {
@@ -198,14 +209,14 @@ body {
 }
 
 .content-editor {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: 180px;
   border-radius: 10px;
   background: #ffffff;
   padding: 10px;
   font-size: var(--content-font-size, 13px);
   line-height: 1.6;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .tag-row {
@@ -247,4 +258,10 @@ body {
 .tool-btn img {
   width: 18px;
   height: 18px;
+}
+
+.note-body::-webkit-scrollbar,
+.attachment-image-row::-webkit-scrollbar,
+.audio-strip::-webkit-scrollbar {
+  display: none;
 }
