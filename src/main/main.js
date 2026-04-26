@@ -54,7 +54,6 @@ function createQuicknoteWindow() {
     skipTaskbar: true,
     show: false,
     hasShadow: false,
-    parent: mainWindow
   }));
 
   quicknoteWindow.loadFile(path.join(__dirname, '../renderer/quicknote.html'));
@@ -62,7 +61,11 @@ function createQuicknoteWindow() {
   quicknoteWindow.on('close', event => {
     if (app.isQuiting) return;
     event.preventDefault();
-    quicknoteWindow.hide();
+    quicknoteWindow.destroy();
+  });
+
+  quicknoteWindow.on('closed', () => {
+    quicknoteWindow = null;
   });
 }
 
@@ -103,7 +106,6 @@ function createNoteWindow(windowKey, payload) {
     skipTaskbar: true,
     show: false,
     hasShadow: false,
-    parent: mainWindow
   }));
 
   noteWindow.__noteKey = windowKey;
@@ -115,7 +117,7 @@ function createNoteWindow(windowKey, payload) {
   noteWindow.on('close', event => {
     if (app.isQuiting) return;
     event.preventDefault();
-    noteWindow.hide();
+    noteWindow.destroy();
   });
 
   noteWindow.on('closed', () => {
@@ -132,13 +134,15 @@ function createNoteWindow(windowKey, payload) {
 
 function focusNoteWindow(windowRef, payload) {
   if (!windowRef || windowRef.isDestroyed()) return;
-  windowRef.center();
-  windowRef.show();
+  sendNotePayload(windowRef, payload);
+  if (!windowRef.isVisible()) {
+    windowRef.center();
+    windowRef.show();
+  }
   windowRef.focus();
   if (typeof windowRef.moveTop === 'function') {
     windowRef.moveTop();
   }
-  sendNotePayload(windowRef, payload);
 }
 
 function createImageViewerWindow() {
@@ -150,7 +154,6 @@ function createImageViewerWindow() {
     frame: false,
     backgroundColor: '#121212',
     show: false,
-    parent: mainWindow
   }));
 
   imageViewerWindow.loadFile(path.join(__dirname, '../renderer/image-viewer.html'));
@@ -218,7 +221,9 @@ function createTray() {
 }
 
 function showQuicknote() {
-  if (!quicknoteWindow) return;
+  if (!quicknoteWindow || quicknoteWindow.isDestroyed()) {
+    createQuicknoteWindow();
+  }
   const bounds = (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible())
     ? mainWindow.getBounds()
     : screen.getPrimaryDisplay().workArea;
@@ -254,14 +259,12 @@ function broadcast(channel, payload) {
 app.whenReady().then(() => {
   store.getDataPaths();
   createMainWindow();
-  createQuicknoteWindow();
   createTray();
   registerShortcut();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
-      createQuicknoteWindow();
     }
   });
 });
@@ -313,18 +316,13 @@ ipcMain.handle('app:update-note-window-context', (event, payload) => {
 
 ipcMain.handle('app:show-quicknote', () => showQuicknote());
 ipcMain.handle('app:hide-quicknote', () => {
-  if (quicknoteWindow) quicknoteWindow.hide();
+  if (quicknoteWindow && !quicknoteWindow.isDestroyed()) quicknoteWindow.close();
 });
 ipcMain.handle('app:hide-note', event => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   if (!senderWindow) return false;
-  const isUnsavedDraft = !!senderWindow.__notePayload?.draft && !senderWindow.__noteId;
-  if (isUnsavedDraft) {
-    noteWindows.delete(senderWindow.__noteKey);
-    senderWindow.destroy();
-    return true;
-  }
-  senderWindow.hide();
+  noteWindows.delete(senderWindow.__noteKey);
+  senderWindow.close();
   return true;
 });
 ipcMain.handle('app:minimize-main', event => {
