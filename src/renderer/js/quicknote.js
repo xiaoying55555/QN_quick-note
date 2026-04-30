@@ -123,6 +123,8 @@ let recordStart = 0;
 let currentAudioPlayer = null;
 let currentAudioButton = null;
 let currentMode = 'mini';
+let dragAttachmentIndex = null;
+let dragAttachmentType = null;
 
 function stopActiveAudio() {
   if (currentAudioPlayer) {
@@ -173,6 +175,29 @@ function getDefaultCollectionId(preferredId) {
   return unfiled?.id || realCollections[0]?.id || '';
 }
 
+function syncCompactSelectWidth(selectEl) {
+  if (!selectEl) return;
+  const option = selectEl.selectedOptions?.[0];
+  const text = option?.textContent || '';
+  const styles = window.getComputedStyle(selectEl);
+  const probe = document.createElement('span');
+  probe.textContent = text;
+  probe.style.position = 'absolute';
+  probe.style.visibility = 'hidden';
+  probe.style.whiteSpace = 'nowrap';
+  probe.style.font = styles.font;
+  probe.style.letterSpacing = styles.letterSpacing;
+  document.body.appendChild(probe);
+  const width = Math.ceil(probe.getBoundingClientRect().width) + 14;
+  document.body.removeChild(probe);
+  selectEl.style.width = `${Math.max(32, width)}px`;
+}
+
+function syncHeaderSelectWidths() {
+  syncCompactSelectWidth(collectionSelect);
+  syncCompactSelectWidth(noteSelect);
+}
+
 async function loadData(preferredCollectionId) {
   const data = await api.invoke('data:get');
   const config = await api.invoke('data:get-config');
@@ -194,6 +219,7 @@ function renderCollections(selectedId) {
     collectionSelect.appendChild(option);
   });
   renderNotes();
+  syncHeaderSelectWidths();
 }
 
 function renderNotes() {
@@ -211,6 +237,65 @@ function renderNotes() {
       option.textContent = note.title || '\u672a\u547d\u540d';
       noteSelect.appendChild(option);
     });
+  syncHeaderSelectWidths();
+}
+
+function removeAttachmentAt(index) {
+  attachments.splice(index, 1);
+  stopActiveAudio();
+  renderAttachments();
+}
+
+function moveAttachmentWithinType(fromIndex, toIndex, type) {
+  if (fromIndex === toIndex) return;
+  const typeIndexes = attachments
+    .map((att, index) => ({ att, index }))
+    .filter(item => item.att.type === type)
+    .map(item => item.index);
+  const sourceIndex = typeIndexes[fromIndex];
+  const targetIndex = typeIndexes[toIndex];
+  if (sourceIndex == null || targetIndex == null) return;
+  const [moved] = attachments.splice(sourceIndex, 1);
+  const adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+  attachments.splice(adjustedTarget, 0, moved);
+  renderAttachments();
+}
+
+function createAttachmentDeleteButton(index) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'attachment-delete-btn';
+  button.textContent = '×';
+  button.addEventListener('click', event => {
+    event.stopPropagation();
+    removeAttachmentAt(index);
+  });
+  return button;
+}
+
+function wireAttachmentDrag(wrapper, type, typeIndex) {
+  wrapper.setAttribute('draggable', 'true');
+  wrapper.addEventListener('dragstart', event => {
+    dragAttachmentIndex = typeIndex;
+    dragAttachmentType = type;
+    wrapper.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+  });
+  wrapper.addEventListener('dragend', () => {
+    wrapper.classList.remove('dragging');
+    dragAttachmentIndex = null;
+    dragAttachmentType = null;
+  });
+  wrapper.addEventListener('dragover', event => {
+    if (dragAttachmentType !== type) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  });
+  wrapper.addEventListener('drop', event => {
+    if (dragAttachmentType !== type) return;
+    event.preventDefault();
+    moveAttachmentWithinType(dragAttachmentIndex, typeIndex, type);
+  });
 }
 
 function renderAttachments() {
@@ -222,6 +307,9 @@ function renderAttachments() {
     const imageRow = document.createElement('div');
     imageRow.className = 'attachment-image-row';
     imageAttachments.forEach((att, index) => {
+      const attachmentIndex = attachments.indexOf(att);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'attachment-item';
       const thumbButton = document.createElement('button');
       thumbButton.type = 'button';
       thumbButton.className = 'attachment-thumb-btn';
@@ -234,7 +322,10 @@ function renderAttachments() {
       thumbButton.addEventListener('click', () => {
         openImageViewer(imageAttachments, index);
       });
-      imageRow.appendChild(thumbButton);
+      wrapper.appendChild(thumbButton);
+      wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
+      wireAttachmentDrag(wrapper, 'image', index);
+      imageRow.appendChild(wrapper);
     });
     attachmentRow.appendChild(imageRow);
   }
@@ -242,7 +333,10 @@ function renderAttachments() {
   if (audioAttachments.length) {
     const audioRow = document.createElement('div');
     audioRow.className = 'audio-strip';
-    audioAttachments.forEach(att => {
+    audioAttachments.forEach((att, index) => {
+      const attachmentIndex = attachments.indexOf(att);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'attachment-item';
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'audio-chip';
@@ -250,7 +344,10 @@ function renderAttachments() {
       chip.addEventListener('click', () => {
         playAudioAttachment(att, chip);
       });
-      audioRow.appendChild(chip);
+      wrapper.appendChild(chip);
+      wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
+      wireAttachmentDrag(wrapper, 'audio', index);
+      audioRow.appendChild(wrapper);
     });
     attachmentRow.appendChild(audioRow);
   }
@@ -426,6 +523,11 @@ document.addEventListener('paste', handlePaste);
 
 collectionSelect.addEventListener('change', () => {
   renderNotes();
+  syncCompactSelectWidth(collectionSelect);
+});
+
+noteSelect.addEventListener('change', () => {
+  syncCompactSelectWidth(noteSelect);
 });
 
 closeQuicknote.addEventListener('click', () => {

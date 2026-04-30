@@ -12,18 +12,22 @@
     <div class="main-shell">
       <aside class="sidebar">
         <div class="logo">QUICKnote</div>
-        <div id="collectionList" class="collection-list">
-          <div class="collection-item active">
-            <span>全部笔记</span>
-            <span class="collection-dot"></span>
+        <div class="sidebar-collections">
+          <div id="collectionScroll" class="collection-scroll scrollbar-hidden">
+            <div id="collectionList" class="collection-list">
+              <div class="collection-item active">
+                <span class="collection-label">全部笔记</span>
+                <span class="collection-dot"></span>
+              </div>
+            </div>
+            <div id="collectionInputWrap" class="collection-input-wrap"></div>
           </div>
+          <img id="addCollectionBtn" class="add-collection-btn no-drag" src="./assets/icons/新增收藏夹.svg" alt="添加收藏夹" />
         </div>
-        <div id="collectionInputWrap" class="collection-input-wrap"></div>
         <div id="collectionContextMenu" class="collection-context-menu hidden">
           <button id="renameCollectionBtn" class="collection-context-item">重命名</button>
           <button id="deleteCollectionBtn" class="collection-context-item danger">删除</button>
         </div>
-        <img id="addCollectionBtn" class="add-collection-btn no-drag" src="./assets/icons/新增收藏夹.svg" alt="添加收藏夹" />
         <div class="sidebar-footer">
           <button id="openSettings" class="icon-btn no-drag" aria-label="设置">
             <img src="./assets/icons/设置.svg" alt="" />

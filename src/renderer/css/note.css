@@ -4,12 +4,14 @@ body {
 }
 
 .note-shell {
+  position: relative;
   width: 100vw;
   height: 100vh;
   padding: 14px;
 }
 
 .note-card {
+  position: relative;
   width: 100%;
   height: 100%;
   background: var(--panel);
@@ -97,6 +99,7 @@ body {
   font-weight: 600;
   outline: none;
   width: 100%;
+  transform: translateY(3px);
 }
 
 .note-body {
@@ -113,6 +116,42 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transform: translateY(6px);
+}
+
+.attachment-item {
+  position: relative;
+  width: 100%;
+}
+
+.attachment-item.dragging {
+  opacity: 0.68;
+}
+
+.attachment-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(31, 31, 31, 0.58);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease-out);
+}
+
+.attachment-item:hover .attachment-delete-btn,
+.attachment-item:focus-within .attachment-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .attachment-thumb {
@@ -163,6 +202,7 @@ body {
   gap: 2px;
   color: #506021;
   transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+  width: 100%;
 }
 
 .audio-chip:hover,
@@ -192,7 +232,10 @@ body {
 }
 
 .toolbar .tool-btn {
-  padding: 4px 8px;
+  width: 42px;
+  height: 30px;
+  padding: 0;
+  flex: 0 0 auto;
   border-radius: 8px;
   background: #f0f2e6;
   transition: transform 150ms var(--ease-out), background 150ms var(--ease-out);
@@ -266,6 +309,15 @@ body {
 .tool-btn img {
   width: 18px;
   height: 18px;
+}
+
+.note-resize-handle {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 14px;
+  cursor: ns-resize;
 }
 
 .attachment-image-row::-webkit-scrollbar,

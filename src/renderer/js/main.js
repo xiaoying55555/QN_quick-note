@@ -81,6 +81,11 @@ const themeToggle = document.getElementById('themeToggle');
 const rememberModeToggle = document.getElementById('rememberModeToggle');
 const settingsStatus = document.getElementById('settingsStatus');
 const buildStamp = document.getElementById('buildStamp');
+const sidebar = document.querySelector('.sidebar');
+const sidebarCollections = document.querySelector('.sidebar-collections');
+const collectionScroll = document.getElementById('collectionScroll');
+const sidebarFooter = document.querySelector('.sidebar-footer');
+const logo = document.querySelector('.logo');
 
 let currentCollectionId = 'all';
 let sortMode = 'updatedAt';
@@ -150,6 +155,18 @@ async function loadData() {
   renderCollections();
   renderNotes();
   hydrateMoveCollectionSelect();
+  requestAnimationFrame(updateCollectionOverflowState);
+}
+
+function updateCollectionOverflowState() {
+  if (!sidebar || !sidebarCollections || !collectionScroll || !addCollectionBtn || !sidebarFooter || !logo) return;
+  sidebarCollections.classList.remove('is-overflowing');
+  const availableHeight = sidebar.clientHeight
+    - logo.offsetHeight
+    - parseFloat(getComputedStyle(sidebarCollections).marginTop || '0')
+    - sidebarFooter.offsetHeight;
+  const contentHeight = collectionScroll.scrollHeight + addCollectionBtn.offsetHeight + 8;
+  sidebarCollections.classList.toggle('is-overflowing', contentHeight > availableHeight);
 }
 
 function renderCollections() {
@@ -158,7 +175,7 @@ function renderCollections() {
   const allItem = document.createElement('div');
   allItem.className = `collection-item ${currentCollectionId === 'all' ? 'active' : ''}`;
   allItem.innerHTML = `
-    <span>全部笔记</span>
+    <span class="collection-label">全部笔记</span>
     ${currentCollectionId === 'all' ? '<span class="collection-dot"></span>' : ''}
   `;
   allItem.addEventListener('click', async () => {
@@ -175,7 +192,7 @@ function renderCollections() {
     item.className = `collection-item ${currentCollectionId === col.id ? 'active' : ''}`;
     item.dataset.collectionId = col.id;
     item.innerHTML = `
-      <span>${escapeHtml(col.name)}</span>
+      <span class="collection-label">${escapeHtml(col.name)}</span>
       ${currentCollectionId === col.id ? '<span class="collection-dot"></span>' : ''}
     `;
     item.addEventListener('click', async () => {
@@ -625,11 +642,16 @@ function showCollectionInput() {
   input.placeholder = '收藏夹名';
   collectionInputWrap.appendChild(input);
   input.focus();
+  requestAnimationFrame(updateCollectionOverflowState);
 
+  let finished = false;
   const finish = async () => {
+    if (finished) return;
+    finished = true;
     const name = input.value.trim();
     if (!name) {
       collectionInputWrap.innerHTML = '';
+      requestAnimationFrame(updateCollectionOverflowState);
       return;
     }
     const collection = await api.invoke('data:create-collection', { name });
@@ -643,11 +665,15 @@ function showCollectionInput() {
 
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter') finish();
-    if (event.key === 'Escape') collectionInputWrap.innerHTML = '';
+    if (event.key === 'Escape') {
+      collectionInputWrap.innerHTML = '';
+      requestAnimationFrame(updateCollectionOverflowState);
+    }
   });
   input.addEventListener('blur', () => {
     if (!input.value.trim()) {
       collectionInputWrap.innerHTML = '';
+      requestAnimationFrame(updateCollectionOverflowState);
       return;
     }
     finish();
@@ -761,6 +787,7 @@ minimizeBtn?.addEventListener('click', async event => {
 
 notesScroll?.addEventListener('scroll', updateScrollIndicator);
 notesGrid?.addEventListener('click', handleNotesGridClick);
+window.addEventListener('resize', updateCollectionOverflowState);
 
 document.addEventListener('click', event => {
   if (!sortMenu.classList.contains('hidden') && !sortMenu.contains(event.target) && event.target !== sortBtn && !sortBtn.contains(event.target)) {

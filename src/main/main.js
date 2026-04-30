@@ -33,10 +33,10 @@ function createWindowOptions(extra = {}) {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow(createWindowOptions({
-    width: 1045,
+    width: 1030,
     height: 629,
-    minWidth: 960,
-    minHeight: 560,
+    minWidth: 1030,
+    minHeight: 629,
     frame: false,
     backgroundColor: '#F5F5F0',
     show: true
@@ -105,9 +105,13 @@ function sendNotePayload(windowRef, payload) {
 
 function createNoteWindow(windowKey, payload) {
   const noteWindow = new BrowserWindow(createWindowOptions({
+    parent: mainWindow || undefined,
     width: 333,
     height: 524,
-    resizable: true,
+    minWidth: 333,
+    maxWidth: 333,
+    minHeight: 524,
+    resizable: false,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -502,6 +506,17 @@ ipcMain.handle('app:hide-note', event => {
   if (!senderWindow) return false;
   noteWindows.delete(senderWindow.__noteKey);
   senderWindow.close();
+  return true;
+});
+ipcMain.handle('app:resize-note-window', (event, payload) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const nextHeight = Number(payload?.height);
+  if (!senderWindow || !Number.isFinite(nextHeight)) return false;
+  const bounds = senderWindow.getBounds();
+  senderWindow.setBounds({
+    ...bounds,
+    height: Math.max(524, Math.round(nextHeight))
+  });
   return true;
 });
 ipcMain.handle('app:minimize-main', event => {

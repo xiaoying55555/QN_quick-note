@@ -120,6 +120,7 @@ const noteBoldBtn = document.getElementById('noteBoldBtn');
 const noteTagBtn = document.getElementById('noteTagBtn');
 const fontPlus = document.getElementById('fontPlus');
 const fontMinus = document.getElementById('fontMinus');
+const noteResizeHandle = document.getElementById('noteResizeHandle');
 
 let currentNoteId = null;
 let currentCollectionId = null;
@@ -134,6 +135,9 @@ let originalSnapshot = null;
 let currentReadOnly = true;
 let currentAudioPlayer = null;
 let currentAudioButton = null;
+let resizeSession = null;
+let dragAttachmentIndex = null;
+let dragAttachmentType = null;
 
 function getDisplayTitle(value) {
   return String(value || '').trim() || '\u65b0\u5efa\u7b14\u8bb0';
@@ -221,6 +225,64 @@ async function openImageViewer(imageAttachments, startIndex) {
   });
 }
 
+function removeAttachmentAt(index) {
+  attachments.splice(index, 1);
+  stopActiveAudio();
+  renderAttachments();
+}
+
+function moveAttachmentWithinType(fromIndex, toIndex, type) {
+  if (fromIndex === toIndex) return;
+  const typeIndexes = attachments
+    .map((att, index) => ({ att, index }))
+    .filter(item => item.att.type === type)
+    .map(item => item.index);
+  const sourceIndex = typeIndexes[fromIndex];
+  const targetIndex = typeIndexes[toIndex];
+  if (sourceIndex == null || targetIndex == null) return;
+  const [moved] = attachments.splice(sourceIndex, 1);
+  const adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+  attachments.splice(adjustedTarget, 0, moved);
+  renderAttachments();
+}
+
+function createAttachmentDeleteButton(index) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'attachment-delete-btn';
+  button.textContent = '×';
+  button.addEventListener('click', event => {
+    event.stopPropagation();
+    removeAttachmentAt(index);
+  });
+  return button;
+}
+
+function wireAttachmentDrag(wrapper, type, typeIndex) {
+  wrapper.setAttribute('draggable', 'true');
+  wrapper.addEventListener('dragstart', event => {
+    dragAttachmentIndex = typeIndex;
+    dragAttachmentType = type;
+    wrapper.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+  });
+  wrapper.addEventListener('dragend', () => {
+    wrapper.classList.remove('dragging');
+    dragAttachmentIndex = null;
+    dragAttachmentType = null;
+  });
+  wrapper.addEventListener('dragover', event => {
+    if (dragAttachmentType !== type) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  });
+  wrapper.addEventListener('drop', event => {
+    if (dragAttachmentType !== type) return;
+    event.preventDefault();
+    moveAttachmentWithinType(dragAttachmentIndex, typeIndex, type);
+  });
+}
+
 function renderAttachments() {
   noteAttachments.innerHTML = '';
   const imageAttachments = attachments.filter(att => att.type === 'image');
@@ -230,6 +292,9 @@ function renderAttachments() {
     const imageRow = document.createElement('div');
     imageRow.className = 'attachment-image-row';
     imageAttachments.forEach((att, index) => {
+      const attachmentIndex = attachments.indexOf(att);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'attachment-item';
       const thumbButton = document.createElement('button');
       thumbButton.type = 'button';
       thumbButton.className = 'attachment-thumb-btn';
@@ -242,7 +307,10 @@ function renderAttachments() {
       thumbButton.addEventListener('click', () => {
         openImageViewer(imageAttachments, index);
       });
-      imageRow.appendChild(thumbButton);
+      wrapper.appendChild(thumbButton);
+      wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
+      wireAttachmentDrag(wrapper, 'image', index);
+      imageRow.appendChild(wrapper);
     });
     noteAttachments.appendChild(imageRow);
   }
@@ -250,7 +318,10 @@ function renderAttachments() {
   if (audioAttachments.length) {
     const audioRow = document.createElement('div');
     audioRow.className = 'audio-strip';
-    audioAttachments.forEach(att => {
+    audioAttachments.forEach((att, index) => {
+      const attachmentIndex = attachments.indexOf(att);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'attachment-item';
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'audio-chip';
@@ -258,7 +329,10 @@ function renderAttachments() {
       button.addEventListener('click', () => {
         playAudioAttachment(att, button);
       });
-      audioRow.appendChild(button);
+      wrapper.appendChild(button);
+      wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
+      wireAttachmentDrag(wrapper, 'audio', index);
+      audioRow.appendChild(wrapper);
     });
     noteAttachments.appendChild(audioRow);
   }
@@ -397,6 +471,22 @@ function stopRecording() {
   if (recorder) recorder.stop();
 }
 
+function stopResizeSession() {
+  if (!resizeSession) return;
+  window.removeEventListener('mousemove', handleResizeDrag);
+  window.removeEventListener('mouseup', stopResizeSession);
+  document.body.style.userSelect = '';
+  resizeSession = null;
+}
+
+function handleResizeDrag(event) {
+  if (!resizeSession) return;
+  const nextHeight = resizeSession.startHeight + (event.screenY - resizeSession.startY);
+  api.invoke('app:resize-note-window', {
+    height: Math.max(524, nextHeight)
+  }).catch(() => {});
+}
+
 pinBtn.addEventListener('click', () => {
   isPinned = !isPinned;
   pinBtn.classList.toggle('active', isPinned);
@@ -473,6 +563,18 @@ fontPlus.addEventListener('click', () => {
 fontMinus.addEventListener('click', () => {
   fontSize = Math.max(fontSize - 1, 11);
   noteContent.style.setProperty('--content-font-size', `${fontSize}px`);
+});
+
+noteResizeHandle?.addEventListener('mousedown', event => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  resizeSession = {
+    startY: event.screenY,
+    startHeight: window.innerHeight
+  };
+  document.body.style.userSelect = 'none';
+  window.addEventListener('mousemove', handleResizeDrag);
+  window.addEventListener('mouseup', stopResizeSession);
 });
 
 api.on('note:open', payload => {

@@ -1,5 +1,5 @@
 ﻿:root {
-  --sidebar-width: 136px;
+  --sidebar-width: 130px;
   --topbar-height: 64px;
   --note-card-width: 261px;
   --note-card-height: 120px;
@@ -8,25 +8,27 @@
 }
 
 body {
-  background: #F8F8F8;
+  background: rgb(250, 250, 248);
 }
 
 .main-shell {
   position: relative;
   height: 100vh;
   display: flex;
-  background: #F8F8F8;
+  background: rgb(250, 250, 248);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
 .sidebar {
-  width: var(--sidebar-width);
-  background: var(--panel-soft);
+   width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  background: #F8FBE9;
   padding: 20px 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
   z-index: 5;
 }
 
@@ -37,6 +39,32 @@ body {
   color: #91b52c;
 }
 
+.sidebar-collections {
+  flex: 0 0 auto;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-collections.is-overflowing {
+  flex: 1;
+  min-height: 0;
+}
+
+.collection-scroll {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.sidebar-collections.is-overflowing .collection-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .collection-list {
   display: flex;
   flex-direction: column;
@@ -45,37 +73,53 @@ body {
 }
 
 .collection-item {
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 12px;
+  font-size: 12.5px;
   cursor: pointer;
   color: var(--muted);
-  transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto;
   align-items: center;
-  justify-content: space-between;
+  column-gap: 10px;
+  width: 100%;
+  min-width: 0;
 }
 
-.collection-item.active {
-  background: rgba(168, 201, 64, 0.2);
-  color: #2a2f1a;
+.collection-label {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
+  min-width: 0;
+  max-width: calc(var(--sidebar-width) - 48px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.collection-item.active .collection-label {
+  background: #A2C921;
+  color: #ffffff;
   font-weight: 600;
+  font-size: 14px;
 }
 
 .collection-dot {
-  width: 6px;
-  height: 6px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--accent);
   opacity: 0.9;
+  flex: 0 0 auto;
 }
 
 .collection-input-wrap {
   min-height: 26px;
   display: flex;
   align-items: center;
-  margin-left: 18px;
-  margin-bottom: -6px;
+  margin-left: 11px;
+  margin-top: 8px;
+  margin-bottom: 2px;
 }
 
 .collection-input-wrap:empty {
@@ -104,7 +148,7 @@ body {
   padding: 0 8px;
   border-radius: 7px;
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
   color: #485427;
 }
 
@@ -147,7 +191,7 @@ body {
   background: transparent;
   align-self: flex-start;
   margin-left: 18px;
-  margin-top: 5px;
+  margin-top: 8px;
   transition: transform 150ms var(--ease-out);
   display: inline-flex;
   align-items: center;
@@ -164,6 +208,8 @@ body {
   align-items: center;
   justify-content: flex-start;
   margin-top: auto;
+  padding-top: 40px;
+  flex: 0 0 auto;
 }
 
 .main-area {
@@ -194,15 +240,15 @@ body {
 }
 
 .search-pill {
-  width: 160px;
-  height: 30px;
+  width: 190px;
+  height: 35px;
   border-radius: 10px;
   background: var(--accent-soft);
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  margin-top: 42px;
+  margin-top: 37px;
 }
 
 .search-pill input {
@@ -289,9 +335,9 @@ body {
 
 .count-label {
   position: absolute;
-  top: 33px;
-  left: 26px;
-  font-size: 11px;
+  top: -4px;
+  left: 46px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -307,7 +353,7 @@ body {
   background: transparent;
   border: none;
   margin-top: 70px;
-  margin-left: 60px;
+  margin-left: 0;
   box-shadow: none;
   padding: 0;
 }
