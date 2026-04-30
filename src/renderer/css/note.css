@@ -105,10 +105,8 @@ body {
   padding: 0 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
+  gap: 4px;
+  overflow: hidden;
 }
 
 .attachments {
@@ -119,7 +117,7 @@ body {
 
 .attachment-thumb {
   width: 100%;
-  height: 88px;
+  height: 74px;
   border-radius: 8px;
   object-fit: cover;
   background: #ececec;
@@ -154,8 +152,8 @@ body {
 }
 
 .audio-chip {
-  min-height: 42px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 10px;
   border-radius: 12px;
   background: #f2f5e8;
   display: flex;
@@ -209,14 +207,22 @@ body {
 }
 
 .content-editor {
-  flex: 0 0 auto;
-  min-height: 180px;
+  flex: 1;
+  min-height: 0;
   border-radius: 10px;
   background: #ffffff;
   padding: 10px;
   font-size: var(--content-font-size, 13px);
   line-height: 1.6;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.content-editor:focus,
+.content-editor:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .tag-row {
@@ -224,6 +230,8 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  padding-top: 4px;
+  margin-top: auto;
 }
 
 .tag-row input {
@@ -260,8 +268,8 @@ body {
   height: 18px;
 }
 
-.note-body::-webkit-scrollbar,
 .attachment-image-row::-webkit-scrollbar,
-.audio-strip::-webkit-scrollbar {
+.audio-strip::-webkit-scrollbar,
+.content-editor::-webkit-scrollbar {
   display: none;
 }

@@ -73,6 +73,25 @@ function sameList(left = [], right = []) {
   return JSON.stringify(left || []) === JSON.stringify(right || []);
 }
 
+function insertPlainTextAtCursor(text) {
+  const safeText = String(text || '');
+  if (!safeText) return;
+  if (document.queryCommandSupported?.('insertText')) {
+    document.execCommand('insertText', false, safeText);
+    return;
+  }
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const textNode = document.createTextNode(safeText);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -341,11 +360,18 @@ async function saveCurrentNote() {
 
 async function handlePaste(event) {
   const imageBytes = api.readClipboardImage();
-  if (!imageBytes) return;
-  event.preventDefault();
-  const savedPath = await api.invoke('data:save-image', imageBytes);
-  attachments.push({ type: 'image', path: savedPath });
-  renderAttachments();
+  if (imageBytes) {
+    event.preventDefault();
+    const savedPath = await api.invoke('data:save-image', imageBytes);
+    attachments.push({ type: 'image', path: savedPath });
+    renderAttachments();
+    return;
+  }
+  const plainText = event.clipboardData?.getData('text/plain');
+  if (plainText) {
+    event.preventDefault();
+    insertPlainTextAtCursor(plainText);
+  }
 }
 
 async function startRecording() {

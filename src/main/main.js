@@ -33,9 +33,9 @@ function createWindowOptions(extra = {}) {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow(createWindowOptions({
-    width: 1005,
+    width: 1045,
     height: 629,
-    minWidth: 900,
+    minWidth: 960,
     minHeight: 560,
     frame: false,
     backgroundColor: '#F5F5F0',

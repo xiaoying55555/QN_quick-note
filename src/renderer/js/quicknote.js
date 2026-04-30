@@ -78,6 +78,25 @@ function textToHtml(text) {
   return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
+function insertPlainTextAtCursor(text) {
+  const safeText = String(text || '');
+  if (!safeText) return;
+  if (document.queryCommandSupported?.('insertText')) {
+    document.execCommand('insertText', false, safeText);
+    return;
+  }
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const textNode = document.createTextNode(safeText);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 async function resolveAssetUrl(relativePath) {
   return api.resolveAssetUrl(relativePath);
 }
@@ -295,14 +314,21 @@ function maybeAutoExpand() {
 
 async function handlePaste(event) {
   const imageBytes = api.readClipboardImage();
-  if (!imageBytes) return;
-  event.preventDefault();
-  const savedPath = await api.invoke('data:save-image', imageBytes);
-  attachments.push({ type: 'image', path: savedPath });
-  if (currentMode === 'mini') {
-    setMode('expanded');
+  if (imageBytes) {
+    event.preventDefault();
+    const savedPath = await api.invoke('data:save-image', imageBytes);
+    attachments.push({ type: 'image', path: savedPath });
+    if (currentMode === 'mini') {
+      setMode('expanded');
+    }
+    renderAttachments();
+    return;
   }
-  renderAttachments();
+  const plainText = event.clipboardData?.getData('text/plain');
+  if (plainText) {
+    event.preventDefault();
+    insertPlainTextAtCursor(plainText);
+  }
 }
 
 async function startRecording() {

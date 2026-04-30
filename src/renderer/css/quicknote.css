@@ -104,6 +104,12 @@ body {
   word-break: break-word;
 }
 
+.content-editor:focus,
+.content-editor:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .content-editor[data-placeholder]:empty::before {
   content: attr(data-placeholder);
   color: rgba(104, 112, 80, 0.55);
