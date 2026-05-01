@@ -16,9 +16,12 @@ body {
   width: 100%;
   height: 100%;
   margin-top: auto;
-  background: var(--panel);
+  background: rgba(255, 255, 255, 0.85);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-strong);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 22px rgba(29, 35, 18, 0.12), 0 3px 8px rgba(29, 35, 18, 0.08);
+  backdrop-filter: blur(36px) saturate(170%);
+  -webkit-backdrop-filter: blur(36px) saturate(170%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -27,6 +30,9 @@ body {
 
 .quicknote-shell.mini .quicknote-card {
   height: 126px;
+  background: rgba(162, 201, 33, 0.85);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 22px rgba(76, 101, 13, 0.16), 0 3px 8px rgba(76, 101, 13, 0.1);
 }
 
 .quicknote-shell.expanded .quicknote-card {
@@ -38,7 +44,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px 8px;
-  background: #F8F8F8;
+  background: transparent;
 }
 
 .archive-select {
@@ -67,6 +73,12 @@ body {
 
 .path-divider {
   color: rgba(143, 178, 62, 0.7);
+}
+
+.quicknote-shell.mini .archive-select,
+.quicknote-shell.mini .archive-select select,
+.quicknote-shell.mini .path-divider {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .quicknote-shell.mini .archive-select {
@@ -101,7 +113,7 @@ body {
   flex: 0 0 auto;
   min-height: 180px;
   border-radius: 10px;
-  background: #ffffff;
+  background: transparent;
   padding: 10px;
   font-size: 13px;
   line-height: 1.6;
@@ -121,6 +133,14 @@ body {
   content: attr(data-placeholder);
   color: rgba(104, 112, 80, 0.55);
   pointer-events: none;
+}
+
+.quicknote-shell.mini .content-editor {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.quicknote-shell.mini .content-editor[data-placeholder]:empty::before {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .quicknote-shell.mini .quicknote-body {
@@ -260,6 +280,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 10px 16px 14px;
+  background: transparent;
 }
 
 .quicknote-shell.mini .quicknote-footer {
@@ -272,7 +293,7 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: #f0f2e6;
+  background: rgba(255, 255, 255, 0.32);
   color: #566b22;
   font-size: 16px;
   line-height: 1;
@@ -283,7 +304,7 @@ body {
 }
 
 .expand-quicknote-btn:hover {
-  background: rgba(168, 201, 64, 0.2);
+  background: rgba(255, 255, 255, 0.42);
   transform: translateY(-1px);
 }
 
@@ -293,14 +314,27 @@ body {
   height: 36px;
   padding: 0 16px;
   border-radius: 10px;
-  background: #A8C940;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.34);
+  color: #506021;
   font-size: 13px;
   font-weight: 600;
 }
 
 .save-quicknote-btn:hover {
-  background: #97b737;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.quicknote-shell.mini .expand-quicknote-btn,
+.quicknote-shell.mini .save-quicknote-btn,
+.quicknote-shell.mini .toolbar-btn {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn:hover,
+.quicknote-shell.mini .save-quicknote-btn:hover,
+.quicknote-shell.mini .toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .quicknote-shell.mini .save-quicknote-btn {
@@ -322,7 +356,7 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: #f0f2e6;
+  background: rgba(255, 255, 255, 0.32);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -330,7 +364,7 @@ body {
 }
 
 .toolbar-btn:hover {
-  background: rgba(168, 201, 64, 0.2);
+  background: rgba(255, 255, 255, 0.42);
   transform: translateY(-1px);
 }
 

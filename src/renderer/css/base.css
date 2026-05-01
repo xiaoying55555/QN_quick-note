@@ -6,8 +6,8 @@
   --muted: #7B7F73;
   --accent: #A8C940;
   --accent-soft: rgba(168, 201, 64, 0.3);
-  --shadow-strong: 0 5px 10px rgba(24, 32, 10, 0.14), 0 2px 4px rgba(24, 32, 10, 0.08);
-  --shadow-soft: 0 6px 16px rgba(0, 0, 0, 0.08);
+  --shadow-strong: 0 5px 10px rgba(162, 188, 114, 0.14), 0 2px 4px rgba(24, 32, 10, 0.08);
+  --shadow-soft: 0 6px 16px rgba(162, 188, 114, 0.14);
   --radius: 16px;
   --radius-sm: 10px;
   --radius-xs: 6px;

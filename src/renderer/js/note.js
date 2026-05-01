@@ -121,6 +121,7 @@ const noteTagBtn = document.getElementById('noteTagBtn');
 const fontPlus = document.getElementById('fontPlus');
 const fontMinus = document.getElementById('fontMinus');
 const noteResizeHandle = document.getElementById('noteResizeHandle');
+const noteCard = document.querySelector('.note-card');
 
 let currentNoteId = null;
 let currentCollectionId = null;
@@ -138,6 +139,8 @@ let currentAudioButton = null;
 let resizeSession = null;
 let dragAttachmentIndex = null;
 let dragAttachmentType = null;
+let qPressed = false;
+let popupOpacity = 1;
 
 function getDisplayTitle(value) {
   return String(value || '').trim() || '\u65b0\u5efa\u7b14\u8bb0';
@@ -145,6 +148,16 @@ function getDisplayTitle(value) {
 
 function syncHeaderTitle() {
   noteHeaderTitle.textContent = getDisplayTitle(noteTitle.value);
+}
+
+function applyPopupOpacity() {
+  if (!noteCard) return;
+  noteCard.style.opacity = popupOpacity.toFixed(2);
+}
+
+function adjustPopupOpacity(delta) {
+  popupOpacity = Math.min(1, Math.max(0.2, popupOpacity + delta));
+  applyPopupOpacity();
 }
 
 function renderCollectionOptions(collections) {
@@ -595,7 +608,16 @@ api.invoke('app:get-note-window-payload')
   })
   .catch(() => {});
 
+window.addEventListener('wheel', event => {
+  if (!qPressed) return;
+  event.preventDefault();
+  adjustPopupOpacity(event.deltaY < 0 ? 0.05 : -0.05);
+}, { passive: false });
+
 document.addEventListener('keydown', event => {
+  if (event.code === 'KeyQ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    qPressed = true;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     saveCurrentNote();
@@ -605,4 +627,14 @@ document.addEventListener('keydown', event => {
     stopActiveAudio();
     api.invoke('app:hide-note');
   }
+});
+
+document.addEventListener('keyup', event => {
+  if (event.code === 'KeyQ') {
+    qPressed = false;
+  }
+});
+
+window.addEventListener('blur', () => {
+  qPressed = false;
 });

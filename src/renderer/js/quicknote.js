@@ -113,6 +113,7 @@ const highlightBtn = document.getElementById('highlightBtn');
 const boldBtn = document.getElementById('boldBtn');
 const saveQuicknoteBtn = document.getElementById('saveQuicknoteBtn');
 const expandQuicknoteBtn = document.getElementById('expandQuicknoteBtn');
+const quicknoteCard = document.querySelector('.quicknote-card');
 
 let collections = [];
 let notes = [];
@@ -125,6 +126,8 @@ let currentAudioButton = null;
 let currentMode = 'mini';
 let dragAttachmentIndex = null;
 let dragAttachmentType = null;
+let qPressed = false;
+let popupOpacity = 1;
 
 function stopActiveAudio() {
   if (currentAudioPlayer) {
@@ -196,6 +199,16 @@ function syncCompactSelectWidth(selectEl) {
 function syncHeaderSelectWidths() {
   syncCompactSelectWidth(collectionSelect);
   syncCompactSelectWidth(noteSelect);
+}
+
+function applyPopupOpacity() {
+  if (!quicknoteCard) return;
+  quicknoteCard.style.opacity = popupOpacity.toFixed(2);
+}
+
+function adjustPopupOpacity(delta) {
+  popupOpacity = Math.min(1, Math.max(0.2, popupOpacity + delta));
+  applyPopupOpacity();
 }
 
 async function loadData(preferredCollectionId) {
@@ -521,6 +534,12 @@ function applyShowPayload(payload = {}) {
 
 document.addEventListener('paste', handlePaste);
 
+window.addEventListener('wheel', event => {
+  if (!qPressed) return;
+  event.preventDefault();
+  adjustPopupOpacity(event.deltaY < 0 ? 0.05 : -0.05);
+}, { passive: false });
+
 collectionSelect.addEventListener('change', () => {
   renderNotes();
   syncCompactSelectWidth(collectionSelect);
@@ -552,6 +571,9 @@ contentEditor.addEventListener('keydown', async event => {
 });
 
 document.addEventListener('keydown', async event => {
+  if (event.code === 'KeyQ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    qPressed = true;
+  }
   if (event.key === 'Escape') {
     resetForm();
     setMode('mini');
@@ -562,6 +584,16 @@ document.addEventListener('keydown', async event => {
     event.preventDefault();
     await saveAndClose();
   }
+});
+
+document.addEventListener('keyup', event => {
+  if (event.code === 'KeyQ') {
+    qPressed = false;
+  }
+});
+
+window.addEventListener('blur', () => {
+  qPressed = false;
 });
 
 expandQuicknoteBtn.addEventListener('click', () => {
