@@ -130,7 +130,7 @@ let isPinned = false;
 let isRecording = false;
 let recorder = null;
 let recordStart = 0;
-let fontSize = 13;
+let fontSize = 14;
 let isDraft = false;
 let originalSnapshot = null;
 let currentReadOnly = true;
@@ -564,7 +564,7 @@ noteBoldBtn.addEventListener('click', () => {
   document.execCommand('bold');
 });
 
-noteTagBtn.addEventListener('click', () => {
+noteTagBtn?.addEventListener('click', () => {
   noteTags.focus();
 });
 

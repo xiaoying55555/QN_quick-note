@@ -6,7 +6,7 @@ body {
 .quicknote-shell {
   width: 100vw;
   height: 100vh;
-  padding: 14px;
+  padding: 14px 16px 14px 14px;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
@@ -29,7 +29,7 @@ body {
 }
 
 .quicknote-shell.mini .quicknote-card {
-  height: 126px;
+  height: 135px;
   background: rgba(162, 201, 33, 1);
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow: 0 10px 22px rgba(76, 101, 13, 0.16), 0 3px 8px rgba(76, 101, 13, 0.1);
@@ -43,7 +43,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px 8px;
+  padding: 12px 12px 8px 16px;
   background: transparent;
 }
 
@@ -54,7 +54,7 @@ body {
   font-size: 13px;
   color: var(--accent);
   font-weight: 600;
-  transform: translateY(5px);
+  transform: translateY(2px);
 }
 
 .archive-select select {
@@ -72,14 +72,27 @@ body {
   background-repeat: no-repeat;
 }
 
+.archive-select select option {
+  color: #8fb23e;
+  background: rgba(255, 255, 255, 0.98);
+}
+
 .path-divider {
   color: rgba(143, 178, 62, 0.7);
 }
 
 .quicknote-shell.mini .archive-select,
-.quicknote-shell.mini .archive-select select,
 .quicknote-shell.mini .path-divider {
   color: rgba(255, 255, 255, 0.95);
+}
+
+.quicknote-shell.mini .archive-select select {
+  color: rgba(255, 255, 255, 0.95);
+  background: transparent;
+  padding-right: 12px;
+  background-position: calc(100% - 7px) 50%, calc(100% - 3px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
 }
 
 .quicknote-shell.mini .archive-select {
@@ -88,6 +101,16 @@ body {
 
 .quicknote-shell.mini .archive-select select {
   font-size: 12.5px;
+  padding: 0 10px 0 0;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.95) 50%), linear-gradient(135deg, rgba(255, 255, 255, 0.95) 50%, transparent 50%);
+  background-position: calc(100% - 6px) 50%, calc(100% - 2px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.quicknote-shell.mini .archive-select select option {
+  color: #8fb23e;
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .quicknote-body {
@@ -104,7 +127,7 @@ body {
 
 .title-input {
   border: none;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   outline: none;
   transform: translateY(5px);
@@ -116,7 +139,7 @@ body {
   border-radius: 10px;
   background: transparent;
   padding: 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   overflow: visible;
   outline: none;
@@ -145,7 +168,7 @@ body {
 }
 
 .quicknote-shell.mini .quicknote-body {
-  padding: 0 12px 2px;
+  padding: 0 12px -2px;
   gap: 4px;
 }
 
@@ -161,12 +184,13 @@ body {
 
 .quicknote-shell.mini .content-editor {
   flex: 0 0 auto;
-  min-height: 28px;
-  max-height: 28px;
+  min-height: 48px;
+  max-height: 48px;
   border-radius: 14px;
-  padding: 4px 12px;
+  padding: 4px 12px 6px;
   line-height: 1.35;
   overflow: hidden;
+  transform: translateY(-1px);
 }
 
 .attachments {
@@ -278,16 +302,49 @@ body {
 
 .quicknote-footer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
-  padding: 10px 16px 14px;
+  padding: 10px 18px 14px 16px;
   background: transparent;
 }
 
 .quicknote-shell.mini .quicknote-footer {
   margin-top: auto;
-  padding: 8px 12px 12px;
+  padding: 8px 14px 12px 12px;
   gap: 8px;
+}
+
+.quicknote-toolbar-frame {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 0 12px 0 0;
+  border-radius: 16px;
+  background: #f8f8f8;
+  overflow: hidden;
+}
+
+.quicknote-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.quicknote-toolbar-group-accent {
+  align-self: stretch;
+  padding: 0 10px;
+  border-radius: 13px;
+  background: #f8fbea;
+}
+
+.quicknote-toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(50, 55, 59, 0.28);
+  border-radius: 999px;
+  flex: 0 0 auto;
 }
 
 .expand-quicknote-btn {
@@ -326,6 +383,19 @@ body {
   background: rgba(162, 201, 33, 0.08);
 }
 
+.quicknote-shell.expanded .expand-quicknote-btn {
+  display: none;
+}
+
+.quicknote-shell.expanded .quicknote-toolbar-frame {
+  margin-left: 0;
+}
+
+.quicknote-shell.expanded .save-quicknote-btn {
+  margin-left: auto;
+  align-self: flex-end;
+}
+
 .quicknote-shell.mini .expand-quicknote-btn,
 .quicknote-shell.mini .save-quicknote-btn,
 .quicknote-shell.mini .toolbar-btn {
@@ -346,18 +416,51 @@ body {
   border-radius: 9px;
 }
 
+.quicknote-shell.mini .quicknote-toolbar-frame {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 0;
+}
+
+.quicknote-shell.mini .quicknote-toolbar-group-accent,
+.quicknote-shell.mini .quicknote-toolbar-divider {
+  display: none;
+}
+
 .quicknote-shell.mini .expand-quicknote-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  font-size: 13px;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 15px;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn:hover {
+  background: transparent;
+  transform: translateY(-1px);
+}
+
+.expand-quicknote-btn img {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn img {
+  width: 16px;
+  height: 16px;
 }
 
 .toolbar-btn {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.32);
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;

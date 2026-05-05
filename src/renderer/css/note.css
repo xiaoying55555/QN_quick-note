@@ -37,7 +37,7 @@ body {
 .note-header-center {
   position: absolute;
   left: 50%;
-  transform: translate(-50%, 5px);
+  transform: translate(-50%, 2px);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -58,6 +58,17 @@ body {
   text-align-last: right;
   outline: none;
   cursor: pointer;
+  padding: 0 10px 0 0;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 6px) 50%, calc(100% - 2px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.note-collection-select option {
+  color: #8fb23e;
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .note-header-title {
@@ -98,7 +109,7 @@ body {
 
 .note-title {
   border: none;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   outline: none;
   width: 100%;
@@ -225,15 +236,17 @@ body {
 
 .toolbar {
   display: none;
-  gap: 16px;
+  justify-content: space-between;
   align-items: center;
-  width: fit-content;
-  min-height: 28px;
+  width: 100%;
+  min-height: 44px;
   margin-top: 4px;
-  padding: 0.5px 10px;
-  border-radius: 8px;
+  padding: 0 10px 0 0;
+  border-radius: 16px;
   background: #f8f8f8;
   font-size: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .toolbar.active {
@@ -243,22 +256,27 @@ body {
 .toolbar-group {
   display: inline-flex;
   align-items: center;
-  gap: 0.5px;
+  gap: 6px;
   flex: 0 0 auto;
 }
 
 .toolbar-group-edit {
-  gap: 6px;
-}
-
-.toolbar-group-tag {
-  margin-left: 6px;
+  margin-left: auto;
 }
 
 .toolbar-group-accent {
-  padding: 3px;
+  align-self: stretch;
+  padding: 0 10px 0 8px;
   border-radius: 13px;
   background: #f8fbea;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(50, 55, 59, 0.28);
+  border-radius: 999px;
+  flex: 0 0 auto;
 }
 
 .toolbar .tool-btn {
@@ -283,18 +301,13 @@ body {
   border-radius: 9px;
 }
 
-.tool-btn-tag {
-  width: 39px;
-  background: transparent;
-}
-
 .content-editor {
   flex: 1;
   min-height: 0;
   border-radius: 10px;
   background: transparent;
   padding: 10px;
-  font-size: var(--content-font-size, 13px);
+  font-size: var(--content-font-size, 14px);
   line-height: 1.6;
   overflow-y: auto;
   overflow-x: hidden;
@@ -353,11 +366,6 @@ body {
   width: 16px;
   height: 16px;
   display: block;
-}
-
-.tool-btn-tag img {
-  width: 37px;
-  height: 15px;
 }
 
 .save-btn img {
