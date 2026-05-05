@@ -129,6 +129,9 @@ let dragAttachmentIndex = null;
 let dragAttachmentType = null;
 let qPressed = false;
 let popupOpacity = 1;
+let recordingPreview = null;
+let recordingTimer = null;
+const HIGHLIGHT_COLOR = '#F3F198';
 
 function stopActiveAudio() {
   if (currentAudioPlayer) {
@@ -177,6 +180,81 @@ function getDefaultCollectionId(preferredId) {
   }
   const unfiled = realCollections.find(col => col.name === '\u672a\u5f52\u6863');
   return unfiled?.id || realCollections[0]?.id || '';
+}
+
+function unwrapElement(element) {
+  const parent = element?.parentNode;
+  if (!parent) return;
+  while (element.firstChild) {
+    parent.insertBefore(element.firstChild, element);
+  }
+  parent.removeChild(element);
+}
+
+function normalizeColorValue(value) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function hasActiveHighlight(editor) {
+  const commandColor = normalizeColorValue(document.queryCommandValue('hiliteColor') || document.queryCommandValue('backColor'));
+  if (commandColor === normalizeColorValue(HIGHLIGHT_COLOR) || commandColor === 'rgb(243,241,152)' || commandColor === 'rgba(243,241,152,1)') {
+    return true;
+  }
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return false;
+  let node = selection.anchorNode;
+  while (node && node !== editor) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const bg = normalizeColorValue(window.getComputedStyle(node).backgroundColor);
+      if (bg === 'rgb(243,241,152)' || bg === 'rgba(243,241,152,1)') {
+        return true;
+      }
+    }
+    node = node.parentNode;
+  }
+  return false;
+}
+
+function cleanupTransparentHighlights(editor) {
+  editor.querySelectorAll('span').forEach(span => {
+    const bg = normalizeColorValue(span.style.backgroundColor || window.getComputedStyle(span).backgroundColor);
+    const style = (span.getAttribute('style') || '').trim().toLowerCase();
+    if (bg === 'transparent' || bg === 'rgba(0,0,0,0)') {
+      if (!style || /^background-color:\s*(transparent|rgba\(0,\s*0,\s*0,\s*0\));?$/.test(style)) {
+        unwrapElement(span);
+      }
+    }
+  });
+}
+
+function toggleHighlight(editor) {
+  const highlighted = hasActiveHighlight(editor);
+  document.execCommand('styleWithCSS', false, true);
+  document.execCommand('hiliteColor', false, highlighted ? 'transparent' : HIGHLIGHT_COLOR);
+  if (highlighted) {
+    cleanupTransparentHighlights(editor);
+  }
+}
+
+function syncRecordingPreview() {
+  if (!recordingPreview) return;
+  recordingPreview.duration = Math.max(0, Math.floor((Date.now() - recordStart) / 1000));
+  renderAttachments();
+}
+
+function startRecordingPreview() {
+  recordingPreview = { type: 'audio', duration: 0, isPending: true };
+  recordBtn.classList.add('active');
+  renderAttachments();
+  clearInterval(recordingTimer);
+  recordingTimer = setInterval(syncRecordingPreview, 1000);
+}
+
+function stopRecordingPreview() {
+  clearInterval(recordingTimer);
+  recordingTimer = null;
+  recordingPreview = null;
+  recordBtn.classList.remove('active');
 }
 
 function syncCompactSelectWidth(selectEl) {
@@ -344,23 +422,34 @@ function renderAttachments() {
     attachmentRow.appendChild(imageRow);
   }
 
-  if (audioAttachments.length) {
+  const audioItems = recordingPreview ? [recordingPreview, ...audioAttachments] : audioAttachments;
+  if (audioItems.length) {
     const audioRow = document.createElement('div');
     audioRow.className = 'audio-strip';
-    audioAttachments.forEach((att, index) => {
-      const attachmentIndex = attachments.indexOf(att);
+    audioItems.forEach((att, index) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'attachment-item';
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'audio-chip';
-      chip.innerHTML = `<span class="audio-chip-label">\u5f55\u97f3</span><span class="audio-chip-time">${formatDuration(att.duration || 0)}</span>`;
-      chip.addEventListener('click', () => {
-        playAudioAttachment(att, chip);
-      });
+      if (att.isPending) {
+        chip.className = 'audio-chip recording active';
+        chip.innerHTML = `<span class="audio-chip-label">\u5f55\u97f3\u4e2d</span><span class="audio-chip-time">${formatDuration(att.duration || 0)}</span>`;
+        chip.addEventListener('click', () => {
+          if (!isRecording) return;
+          isRecording = false;
+          stopRecording();
+        });
+      } else {
+        const attachmentIndex = attachments.indexOf(att);
+        chip.className = 'audio-chip';
+        chip.innerHTML = `<span class="audio-chip-label">\u5f55\u97f3</span><span class="audio-chip-time">${formatDuration(att.duration || 0)}</span>`;
+        chip.addEventListener('click', () => {
+          playAudioAttachment(att, chip);
+        });
+        wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
+        wireAttachmentDrag(wrapper, 'audio', recordingPreview ? index - 1 : index);
+      }
       wrapper.appendChild(chip);
-      wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
-      wireAttachmentDrag(wrapper, 'audio', index);
       audioRow.appendChild(wrapper);
     });
     attachmentRow.appendChild(audioRow);
@@ -450,6 +539,7 @@ async function startRecording() {
   recorder = new MediaRecorder(stream);
   const chunks = [];
   recordStart = Date.now();
+  startRecordingPreview();
   recorder.ondataavailable = event => chunks.push(event.data);
   recorder.onstop = async () => {
     const blob = new Blob(chunks, { type: recorder.mimeType });
@@ -457,15 +547,18 @@ async function startRecording() {
     const extension = recorder.mimeType.includes('ogg') ? 'ogg' : 'webm';
     const savedPath = await api.invoke('data:save-audio', { buffer, extension });
     const duration = Math.max(1, Math.round((Date.now() - recordStart) / 1000));
+    stopRecordingPreview();
     attachments.push({ type: 'audio', path: savedPath, duration });
     renderAttachments();
     stream.getTracks().forEach(track => track.stop());
+    recorder = null;
+    isRecording = false;
   };
   recorder.start();
 }
 
 function stopRecording() {
-  if (recorder) recorder.stop();
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
 }
 
 async function saveNote() {
@@ -607,7 +700,12 @@ expandQuicknoteBtn.addEventListener('click', () => {
 recordBtn.addEventListener('click', async () => {
   if (!isRecording) {
     isRecording = true;
-    await startRecording();
+    try {
+      await startRecording();
+    } catch (_error) {
+      isRecording = false;
+      stopRecordingPreview();
+    }
   } else {
     isRecording = false;
     stopRecording();
@@ -615,7 +713,7 @@ recordBtn.addEventListener('click', async () => {
 });
 
 highlightBtn.addEventListener('click', () => {
-  document.execCommand('hiliteColor', false, '#F3F198');
+  toggleHighlight(contentEditor);
 });
 
 boldBtn.addEventListener('click', () => {

@@ -290,6 +290,10 @@ body {
   background: rgba(168, 201, 64, 0.24);
 }
 
+.audio-chip.recording {
+  background: rgba(162, 201, 33, 0.3);
+}
+
 .audio-chip-label {
   font-size: 10px;
   opacity: 0.78;
@@ -318,9 +322,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-height: 42px;
-  padding: 0 12px 0 0;
-  border-radius: 16px;
+  min-height: 30px;
+  padding: 0 3px 0 0;
+  border-radius: 10px;
   background: #f8f8f8;
   overflow: hidden;
 }
@@ -341,7 +345,7 @@ body {
 
 .quicknote-toolbar-divider {
   width: 1px;
-  height: 22px;
+  height: 12px;
   background: rgba(50, 55, 59, 0.28);
   border-radius: 999px;
   flex: 0 0 auto;

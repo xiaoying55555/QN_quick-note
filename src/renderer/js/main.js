@@ -319,6 +319,13 @@ function createTagChip(text, palette) {
   return chip;
 }
 
+function createMetaCount(iconPath, alt, count) {
+  const item = document.createElement('span');
+  item.className = 'note-meta-count';
+  item.innerHTML = `<img src="${iconPath}" alt="${alt}" /><span>${count}</span>`;
+  return item;
+}
+
 function getDefaultCollection() {
   return collections.find(collection => collection.isDefault) || collections[0] || null;
 }
@@ -346,7 +353,7 @@ function renderNotes() {
   const newCard = document.createElement('div');
   newCard.className = 'note-card new-note';
   newCard.dataset.noteAction = 'new';
-  newCard.innerHTML = '<img src="./assets/icons/新增笔记1.svg" alt="新增笔记" class="new-note-icon" /><span>NEW NOTE</span>';
+  newCard.innerHTML = '<img src="./assets/icons/add-note-new.svg" alt="新增笔记" class="new-note-icon" /><span>NEW NOTE</span>';
   notesGrid.appendChild(newCard);
 
   notes.forEach(note => {
@@ -406,7 +413,10 @@ function renderNotes() {
     counts.className = 'note-meta-counts';
     const imageCount = (note.attachments || []).filter(att => att.type === 'image').length;
     const audioCount = (note.attachments || []).filter(att => att.type === 'audio').length;
-    counts.textContent = imageCount > 0 ? `图片 ${imageCount}  录音 ${audioCount}` : `录音 ${audioCount}`;
+    if (imageCount > 0) {
+      counts.appendChild(createMetaCount('./assets/icons/pic.svg', '图片', imageCount));
+    }
+    counts.appendChild(createMetaCount('./assets/icons/voice.svg', '录音', audioCount));
 
     meta.appendChild(tagWrap);
     meta.appendChild(counts);

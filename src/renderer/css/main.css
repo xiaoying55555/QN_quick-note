@@ -30,18 +30,24 @@ body {
   flex-direction: column;
   gap: 0;
   z-index: 5;
+  box-shadow: 4px 0 6px rgba(84, 105, 29, 0.04);
 }
 
 .logo {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.5px;
-  color: #91b52c;
+  display: flex;
+  align-items: center;
+  min-height: 11px;
+}
+
+.logo-image {
+  width: 68px;
+  height: 11px;
+  display: block;
 }
 
 .sidebar-collections {
   flex: 0 0 auto;
-  margin-top: 20px;
+  margin-top: 40px;
   display: flex;
   flex-direction: column;
 }
@@ -185,13 +191,13 @@ body {
 }
 
 .add-collection-btn {
-  width: 38px;
-  height: 38px;
+  width: 33px;
+  height: 33px;
   border-radius: 0;
   background: transparent;
   align-self: flex-start;
-  margin-left: 18px;
-  margin-top: 8px;
+  margin-left: 4px;
+  margin-top: 13px;
   transition: transform 150ms var(--ease-out);
   display: inline-flex;
   align-items: center;
@@ -426,12 +432,12 @@ body {
 }
 
 .note-card.drag-over {
-  outline: 2px dashed rgba(168, 201, 64, 0.5);
+  outline: 2px dashed rgba(129, 151, 59, 0.5);
 }
 
 .note-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 20px rgba(129, 151, 59, 0.18);
 }
 
 .note-card.new-note {
@@ -456,8 +462,8 @@ body {
 }
 
 .note-card.new-note img {
-  width: 100%;
-  height: 100%;
+  width: 92%;
+  height: 92%;
   object-fit: contain;
 }
 
@@ -589,6 +595,19 @@ body {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+}
+
+.note-meta-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.note-meta-count img {
+  width: 11px;
+  height: 11px;
+  display: block;
+  object-fit: contain;
 }
 
 .highlight {

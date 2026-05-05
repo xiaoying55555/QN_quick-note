@@ -18,6 +18,8 @@ const noteWindows = new Map();
 const QUICKNOTE_WIDTH = 419;
 const QUICKNOTE_HEIGHT = 391;
 const OCR_SHORTCUT = 'Alt+Shift+S';
+const MAIN_WINDOW_WIDTH = 1045;
+const MAIN_WINDOW_HEIGHT = 629;
 
 function createWindowOptions(extra = {}) {
   return {
@@ -33,10 +35,10 @@ function createWindowOptions(extra = {}) {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow(createWindowOptions({
-    width: 1030,
-    height: 629,
-    minWidth: 1030,
-    minHeight: 629,
+    width: MAIN_WINDOW_WIDTH,
+    height: MAIN_WINDOW_HEIGHT,
+    minWidth: MAIN_WINDOW_WIDTH,
+    minHeight: MAIN_WINDOW_HEIGHT,
     frame: false,
     backgroundColor: '#F5F5F0',
     show: true
