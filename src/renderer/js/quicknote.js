@@ -114,6 +114,7 @@ const boldBtn = document.getElementById('boldBtn');
 const saveQuicknoteBtn = document.getElementById('saveQuicknoteBtn');
 const expandQuicknoteBtn = document.getElementById('expandQuicknoteBtn');
 const quicknoteCard = document.querySelector('.quicknote-card');
+const closeQuicknoteIcon = document.getElementById('closeQuicknoteIcon');
 
 let collections = [];
 let notes = [];
@@ -384,7 +385,10 @@ function setMode(mode) {
   currentMode = mode;
   quicknoteShell.classList.toggle('mini', mode === 'mini');
   quicknoteShell.classList.toggle('expanded', mode === 'expanded');
-  saveQuicknoteBtn.textContent = '\u8bb0\u4e0b\u4e86';
+  saveQuicknoteBtn.innerHTML = '<img src="./assets/icons/save.svg" alt="" />';
+  if (closeQuicknoteIcon) {
+    closeQuicknoteIcon.src = mode === 'mini' ? './assets/icons/close-mini.svg' : './assets/icons/close.svg';
+  }
 }
 
 function toggleMode(forceMode) {

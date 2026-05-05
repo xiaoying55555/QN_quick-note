@@ -44,10 +44,23 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/main.html'));
 
+  mainWindow.on('focus', () => {
+    bringNoteWindowsAboveMain();
+  });
+
   mainWindow.on('close', event => {
     if (app.isQuiting) return;
     event.preventDefault();
     mainWindow.hide();
+  });
+}
+
+function bringNoteWindowsAboveMain() {
+  noteWindows.forEach(windowRef => {
+    if (!windowRef || windowRef.isDestroyed() || !windowRef.isVisible()) return;
+    if (typeof windowRef.moveTop === 'function') {
+      windowRef.moveTop();
+    }
   });
 }
 
@@ -105,7 +118,6 @@ function sendNotePayload(windowRef, payload) {
 
 function createNoteWindow(windowKey, payload) {
   const noteWindow = new BrowserWindow(createWindowOptions({
-    parent: mainWindow || undefined,
     width: 333,
     height: 524,
     minWidth: 333,

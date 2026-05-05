@@ -28,19 +28,33 @@
           <input id="noteTitle" class="note-title" placeholder="&#26631;&#39064;" />
           <div id="noteAttachments" class="attachments"></div>
           <div id="noteToolbar" class="toolbar">
-            <button id="noteRecordBtn" class="tool-btn" aria-label="&#24405;&#38899;">
-              <img src="./assets/icons/record.svg" alt="" />
-            </button>
-            <button id="noteImageBtn" class="tool-btn">&#128444;</button>
-            <button id="fontPlus" class="tool-btn">A+</button>
-            <button id="fontMinus" class="tool-btn">A-</button>
-            <button id="noteHighlightBtn" class="tool-btn" aria-label="&#39640;&#20142;">
-              <img src="./assets/icons/highlight.svg" alt="" />
-            </button>
-            <button id="noteBoldBtn" class="tool-btn" aria-label="&#21152;&#31895;">
-              <img src="./assets/icons/bold.svg" alt="" />
-            </button>
-            <button id="noteTagBtn" class="tool-btn">+ Tag</button>
+            <div class="toolbar-group toolbar-group-accent">
+              <button id="noteRecordBtn" class="tool-btn" aria-label="&#24405;&#38899;">
+                <img src="./assets/icons/record.svg" alt="" />
+              </button>
+              <button id="noteImageBtn" class="tool-btn" aria-label="&#25554;&#20837;&#22270;&#29255;">
+                <img src="./assets/icons/toolbar-picture.svg" alt="" />
+              </button>
+            </div>
+            <div class="toolbar-group toolbar-group-edit">
+              <button id="fontPlus" class="tool-btn" aria-label="&#25918;&#22823;&#23383;&#21495;">
+                <img src="./assets/icons/toolbar-font-plus.svg" alt="" />
+              </button>
+              <button id="fontMinus" class="tool-btn" aria-label="&#32553;&#23567;&#23383;&#21495;">
+                <img src="./assets/icons/toolbar-font-minus.svg" alt="" />
+              </button>
+              <button id="noteHighlightBtn" class="tool-btn" aria-label="&#39640;&#20142;">
+                <img src="./assets/icons/highlight.svg" alt="" />
+              </button>
+              <button id="noteBoldBtn" class="tool-btn" aria-label="&#21152;&#31895;">
+                <img src="./assets/icons/bold.svg" alt="" />
+              </button>
+            </div>
+            <div class="toolbar-group toolbar-group-tag">
+              <button id="noteTagBtn" class="tool-btn tool-btn-tag" aria-label="&#28155;&#21152;&#26631;&#31614;">
+                <img src="./assets/icons/toolbar-tag.svg" alt="" />
+              </button>
+            </div>
           </div>
           <div id="noteContent" class="content-editor scrollbar-hidden" contenteditable="false"></div>
           <div class="tag-row">
@@ -50,7 +64,9 @@
         </div>
         <div class="note-footer">
           <div id="noteStatus">&#21482;&#35835;&#27169;&#24335;&#65292;&#21452;&#20987;&#27491;&#25991;&#36827;&#20837;&#32534;&#36753;</div>
-          <button id="saveNoteBtn" class="save-btn">&#20445;&#23384;</button>
+          <button id="saveNoteBtn" class="save-btn" aria-label="&#20445;&#23384;">
+            <img src="./assets/icons/save.svg" alt="" />
+          </button>
         </div>
         <div id="noteResizeHandle" class="note-resize-handle no-drag" aria-hidden="true"></div>
       </div>
