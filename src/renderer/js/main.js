@@ -45,6 +45,7 @@ async function resolveAssetUrl(relativePath) {
 const collectionList = document.getElementById('collectionList');
 const notesGrid = document.getElementById('notesGrid');
 const searchInput = document.getElementById('searchInput');
+const searchPill = document.querySelector('.search-pill');
 const sortBtn = document.getElementById('sortBtn');
 const sortMenu = document.getElementById('sortMenu');
 const selectBtn = document.getElementById('selectBtn');
@@ -58,41 +59,78 @@ const noteCount = document.getElementById('noteCount');
 const notesArea = document.getElementById('notesArea');
 const collectionInputWrap = document.getElementById('collectionInputWrap');
 const collectionContextMenu = document.getElementById('collectionContextMenu');
+const noteContextMenu = document.getElementById('noteContextMenu');
 const renameCollectionBtn = document.getElementById('renameCollectionBtn');
 const deleteCollectionBtn = document.getElementById('deleteCollectionBtn');
+const pinNoteCardBtn = document.getElementById('pinNoteCardBtn');
+const exportNoteImageBtn = document.getElementById('exportNoteImageBtn');
+const deleteNoteCardBtn = document.getElementById('deleteNoteCardBtn');
 const collectionDeleteModal = document.getElementById('collectionDeleteModal');
 const cancelCollectionDeleteBtn = document.getElementById('cancelCollectionDeleteBtn');
 const confirmCollectionDeleteBtn = document.getElementById('confirmCollectionDeleteBtn');
 const selectionBar = document.getElementById('selectionBar');
 const selectionCount = document.getElementById('selectionCount');
+const selectAllBtn = document.getElementById('selectAllBtn');
 const moveCollectionSelect = document.getElementById('moveCollectionSelect');
 const moveSelectionBtn = document.getElementById('moveSelectionBtn');
 const exportSelectionBtn = document.getElementById('exportSelectionBtn');
+const mergeSelectionBtn = document.getElementById('mergeSelectionBtn');
 const cancelSelectionBtn = document.getElementById('cancelSelectionBtn');
 const deleteSelectionBtn = document.getElementById('deleteSelectionBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const dataPathValue = document.getElementById('dataPathValue');
+const backupIntervalInput = document.getElementById('backupIntervalInput');
+const saveBackupIntervalBtn = document.getElementById('saveBackupIntervalBtn');
 const openDataFolderBtn = document.getElementById('openDataFolderBtn');
-const exportAllBtn = document.getElementById('exportAllBtn');
 const backupDataBtn = document.getElementById('backupDataBtn');
+const importBackupBtn = document.getElementById('importBackupBtn');
 const shortcutInput = document.getElementById('shortcutInput');
 const saveShortcutBtn = document.getElementById('saveShortcutBtn');
-const themeToggle = document.getElementById('themeToggle');
 const rememberModeToggle = document.getElementById('rememberModeToggle');
+const clipboardToggle = document.getElementById('clipboardToggle');
+const openPrivateCollectionBtn = document.getElementById('openPrivateCollectionBtn');
 const settingsStatus = document.getElementById('settingsStatus');
 const buildStamp = document.getElementById('buildStamp');
+const sidebar = document.querySelector('.sidebar');
+const sidebarCollections = document.querySelector('.sidebar-collections');
+const collectionScroll = document.getElementById('collectionScroll');
+const sidebarFooter = document.querySelector('.sidebar-footer');
+const logo = document.querySelector('.logo');
+const privateCollectionGate = document.getElementById('privateCollectionGate');
+const privateCollectionTitle = document.getElementById('privateCollectionTitle');
+const privateCollectionCopy = document.getElementById('privateCollectionCopy');
+const privatePasswordLabel = document.getElementById('privatePasswordLabel');
+const privatePasswordInput = document.getElementById('privatePasswordInput');
+const privatePasswordConfirmField = document.getElementById('privatePasswordConfirmField');
+const privatePasswordConfirmInput = document.getElementById('privatePasswordConfirmInput');
+const privatePasswordToggle = document.getElementById('privatePasswordToggle');
+const privatePasswordToggleIcon = document.getElementById('privatePasswordToggleIcon');
+const privateCollectionSubmit = document.getElementById('privateCollectionSubmit');
+const privateCollectionStatus = document.getElementById('privateCollectionStatus');
+const mainEdgeZones = Array.from(document.querySelectorAll('[data-expand-edge]'));
 
 let currentCollectionId = 'all';
 let sortMode = 'updatedAt';
 let collections = [];
 let notes = [];
 let draggedId = null;
+let suppressCardClickUntil = 0;
 let configCache = null;
 let selectionMode = false;
 let selectedNoteIds = new Set();
 let settingsOpen = false;
 let contextCollectionId = null;
 let pendingDeleteCollectionId = null;
+let contextNoteId = null;
+let contextNotePinned = false;
+let privateCollectionId = '';
+let privateCollectionEnabled = false;
+let privateCollectionHasPassword = false;
+let privateCollectionUnlocked = false;
+let privatePasswordVisible = false;
+let forcedCollectionId = null;
+let privateCollectionOpening = false;
+let draggedCollectionId = null;
 
 function setBuildStamp(message, isError = false) {
   if (!buildStamp) return;
@@ -102,21 +140,97 @@ function setBuildStamp(message, isError = false) {
 
 setBuildStamp('renderer loaded');
 
+function isPrivateCollectionSelected() {
+  return !!privateCollectionId && currentCollectionId === privateCollectionId;
+}
+
+function isPrivateCollectionLocked() {
+  return isPrivateCollectionSelected() && !privateCollectionUnlocked;
+}
+
+function setPrivateCollectionStatus(message, state = '') {
+  if (!privateCollectionStatus) return;
+  privateCollectionStatus.textContent = message;
+  if (state) {
+    privateCollectionStatus.dataset.state = state;
+  } else {
+    delete privateCollectionStatus.dataset.state;
+  }
+}
+
+function syncPrivatePasswordToggleIcon() {
+  if (!privatePasswordToggleIcon) return;
+  privatePasswordToggleIcon.src = privatePasswordVisible
+    ? './assets/icons/eye-open.png'
+    : './assets/icons/eye-closed.png';
+}
+
+async function loadPrivateCollectionState() {
+  try {
+    const state = await api.invoke('data:get-private-state');
+    privateCollectionId = state?.collectionId || '';
+    privateCollectionEnabled = !!state?.enabled;
+    privateCollectionHasPassword = !!state?.hasPassword;
+  } catch (_error) {
+    privateCollectionId = '';
+    privateCollectionEnabled = false;
+    privateCollectionHasPassword = false;
+  }
+  if (!isPrivateCollectionSelected()) {
+    privateCollectionUnlocked = false;
+  }
+}
+
+function updatePrivateCollectionGate() {
+  const locked = isPrivateCollectionLocked();
+  notesArea?.classList.toggle('private-locked', locked);
+  privateCollectionGate?.classList.toggle('hidden', !locked);
+  if (!locked) {
+    privatePasswordInput.value = '';
+    privatePasswordConfirmInput.value = '';
+    setPrivateCollectionStatus('');
+    privatePasswordVisible = false;
+    privatePasswordInput.type = 'password';
+    privatePasswordConfirmInput.type = 'password';
+    syncPrivatePasswordToggleIcon();
+    return;
+  }
+
+  privateCollectionTitle.textContent = privateCollectionHasPassword ? '进入隐私收藏夹' : '设置隐私收藏夹密码';
+  privateCollectionCopy.textContent = privateCollectionHasPassword
+    ? '请输入密码后查看隐私收藏夹内容。'
+    : '首次进入需要先设置密码，设置完成后即可进入隐私收藏夹。';
+  privatePasswordLabel.textContent = privateCollectionHasPassword ? '密码' : '设置密码';
+  privatePasswordInput.placeholder = privateCollectionHasPassword ? '请输入密码' : '请设置密码';
+  privatePasswordConfirmField.classList.toggle('hidden', privateCollectionHasPassword);
+  privateCollectionSubmit.textContent = privateCollectionHasPassword ? '解锁' : '设置并进入';
+  syncPrivatePasswordToggleIcon();
+}
+
 async function loadConfig() {
   try {
     configCache = await api.invoke('data:get-config');
   } catch (_error) {
     configCache = {
-      shortcut: 'Ctrl+Shift+N',
+      shortcut: 'Ctrl+Q',
       sortMode: 'updatedAt',
       lastCollectionId: 'all',
       theme: 'light',
       rememberState: true,
-      dataPath: ''
+      readClipboardOnQuicknote: false,
+      dataPath: '',
+      autoBackupIntervalDays: 30
     };
   }
+  await loadPrivateCollectionState();
   sortMode = configCache.sortMode || 'updatedAt';
-  currentCollectionId = configCache.lastCollectionId || 'all';
+  currentCollectionId = forcedCollectionId || configCache.lastCollectionId || 'all';
+  if ((!privateCollectionEnabled && currentCollectionId === privateCollectionId) || !currentCollectionId) {
+    currentCollectionId = 'all';
+  }
+  if (privateCollectionEnabled && privateCollectionId && currentCollectionId === privateCollectionId) {
+    privateCollectionUnlocked = false;
+  }
 }
 
 async function saveConfig(patch = {}) {
@@ -136,7 +250,8 @@ async function loadData() {
     const data = await api.invoke('data:search', {
       collectionId: currentCollectionId,
       search: searchInput?.value || '',
-      sortMode
+      sortMode,
+      allowPrivateCollectionAccess: isPrivateCollectionSelected() && privateCollectionUnlocked
     });
     collections = data.collections || [];
     notes = data.notes || [];
@@ -144,25 +259,100 @@ async function loadData() {
     collections = [];
     notes = [];
   }
+  updatePrivateCollectionGate();
   if (sortMode === 'custom' && !selectionMode) {
     await ensureCustomOrder();
   }
   renderCollections();
   renderNotes();
   hydrateMoveCollectionSelect();
+  requestAnimationFrame(updateCollectionOverflowState);
+}
+
+function updateCollectionOverflowState() {
+  if (!sidebar || !sidebarCollections || !collectionScroll || !addCollectionBtn || !sidebarFooter || !logo) return;
+  const maxVisibleCollections = 11;
+  sidebarCollections.classList.remove('is-overflowing');
+  const availableHeight = sidebar.clientHeight
+    - logo.offsetHeight
+    - parseFloat(getComputedStyle(sidebarCollections).marginTop || '0')
+    - sidebarFooter.offsetHeight;
+  const collectionItems = Array.from(collectionList.querySelectorAll('.collection-item'));
+  const visibleItems = collectionItems.slice(0, maxVisibleCollections);
+  const listGap = parseFloat(getComputedStyle(collectionList).gap || '0');
+  const visibleListHeight = visibleItems.reduce((total, item) => total + item.offsetHeight, 0)
+    + Math.max(0, visibleItems.length - 1) * listGap;
+  const inputStyles = getComputedStyle(collectionInputWrap);
+  const inputHeight = collectionInputWrap.offsetHeight
+    + parseFloat(inputStyles.marginTop || '0')
+    + parseFloat(inputStyles.marginBottom || '0');
+  const cappedContentHeight = visibleListHeight + inputHeight;
+  const maxScrollHeight = Math.max(
+    0,
+    Math.min(
+      availableHeight - addCollectionBtn.offsetHeight - 8,
+      cappedContentHeight || collectionScroll.scrollHeight
+    )
+  );
+  collectionScroll.style.maxHeight = maxScrollHeight > 0 ? `${maxScrollHeight}px` : '';
+  const contentHeight = collectionScroll.scrollHeight + addCollectionBtn.offsetHeight + 8;
+  sidebarCollections.classList.toggle(
+    'is-overflowing',
+    collectionScroll.scrollHeight > maxScrollHeight + 1 || contentHeight > availableHeight
+  );
 }
 
 function renderCollections() {
   collectionList.innerHTML = '';
 
+  const privateCollection = privateCollectionEnabled
+    ? collections.find(item => item.id === privateCollectionId)
+    : null;
+  const regularCollections = collections.filter(item => item.id !== privateCollectionId);
+
+  if (privateCollection) {
+    const item = document.createElement('div');
+    item.className = `collection-item ${currentCollectionId === privateCollection.id ? 'active' : ''}`;
+    item.dataset.collectionId = privateCollection.id;
+    item.innerHTML = `
+      <span class="collection-label collection-label-lock"><img src="./assets/icons/private-lock-white.svg" alt="锁定" class="collection-lock-icon" /></span>
+      ${currentCollectionId === privateCollection.id ? '<span class="collection-dot"></span>' : ''}
+    `;
+    item.addEventListener('click', async () => {
+      currentCollectionId = privateCollection.id;
+      if (settingsOpen) {
+        toggleSettings(false);
+      }
+      if (configCache?.rememberState !== false) {
+        await saveConfig();
+      }
+      loadData();
+    });
+    item.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      showCollectionContextMenu(privateCollection, event.currentTarget);
+    });
+    wireCollectionDrag(item, privateCollection.id);
+    collectionList.appendChild(item);
+  }
+
   const allItem = document.createElement('div');
   allItem.className = `collection-item ${currentCollectionId === 'all' ? 'active' : ''}`;
   allItem.innerHTML = `
-    <span>全部笔记</span>
+    <span class="collection-label">全部笔记</span>
     ${currentCollectionId === 'all' ? '<span class="collection-dot"></span>' : ''}
   `;
   allItem.addEventListener('click', async () => {
     currentCollectionId = 'all';
+    forcedCollectionId = null;
+    privateCollectionUnlocked = false;
+    if (privateCollectionEnabled) {
+      await api.invoke('data:set-private-enabled', false);
+      await loadPrivateCollectionState();
+    }
+    if (settingsOpen) {
+      toggleSettings(false);
+    }
     if (configCache?.rememberState !== false) {
       await saveConfig();
     }
@@ -170,16 +360,27 @@ function renderCollections() {
   });
   collectionList.appendChild(allItem);
 
-  collections.forEach(col => {
+  regularCollections.forEach(col => {
     const item = document.createElement('div');
     item.className = `collection-item ${currentCollectionId === col.id ? 'active' : ''}`;
     item.dataset.collectionId = col.id;
     item.innerHTML = `
-      <span>${escapeHtml(col.name)}</span>
+      <span class="collection-label">${escapeHtml(getCollectionDisplayName(col))}</span>
       ${currentCollectionId === col.id ? '<span class="collection-dot"></span>' : ''}
     `;
     item.addEventListener('click', async () => {
       currentCollectionId = col.id;
+      forcedCollectionId = null;
+      if (settingsOpen) {
+        toggleSettings(false);
+      }
+      if (col.id !== privateCollectionId) {
+        privateCollectionUnlocked = false;
+        if (privateCollectionEnabled) {
+          await api.invoke('data:set-private-enabled', false);
+          await loadPrivateCollectionState();
+        }
+      }
       if (configCache?.rememberState !== false) {
         await saveConfig();
       }
@@ -189,7 +390,50 @@ function renderCollections() {
       event.preventDefault();
       showCollectionContextMenu(col, event.currentTarget);
     });
+    wireCollectionDrag(item, col.id);
     collectionList.appendChild(item);
+  });
+}
+
+function wireCollectionDrag(item, collectionId) {
+  if (!item || !collectionId) return;
+  item.setAttribute('draggable', 'true');
+  item.addEventListener('dragstart', event => {
+    draggedCollectionId = collectionId;
+    item.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', collectionId);
+  });
+  item.addEventListener('dragend', () => {
+    draggedCollectionId = null;
+    item.classList.remove('dragging');
+    item.classList.remove('drag-over');
+  });
+  item.addEventListener('dragover', event => {
+    if (!draggedCollectionId || draggedCollectionId === collectionId) return;
+    event.preventDefault();
+    item.classList.add('drag-over');
+  });
+  item.addEventListener('dragleave', () => {
+    item.classList.remove('drag-over');
+  });
+  item.addEventListener('drop', async event => {
+    if (!draggedCollectionId || draggedCollectionId === collectionId) return;
+    event.preventDefault();
+    item.classList.remove('drag-over');
+    const orderedCollectionIds = Array.from(collectionList.querySelectorAll('[data-collection-id]'))
+      .map(element => element.dataset.collectionId)
+      .filter(Boolean);
+    const sourceIndex = orderedCollectionIds.indexOf(draggedCollectionId);
+    const targetIndex = orderedCollectionIds.indexOf(collectionId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const nextOrder = orderedCollectionIds.slice();
+    const [moved] = nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, moved);
+    await api.invoke('data:update-collection-orders', nextOrder.map((id, index) => ({
+      id,
+      order: index
+    })));
   });
 }
 
@@ -200,12 +444,31 @@ function showCollectionContextMenu(collection, target) {
   collectionContextMenu.style.left = `${rect.right - shellRect.left + 8}px`;
   collectionContextMenu.style.top = `${rect.top - shellRect.top}px`;
   collectionContextMenu.classList.remove('hidden');
-  deleteCollectionBtn.disabled = !!collection.isDefault;
+  deleteCollectionBtn.disabled = !!(collection.isDefault || collection.isPrivate);
 }
 
 function hideCollectionContextMenu() {
   contextCollectionId = null;
   collectionContextMenu.classList.add('hidden');
+}
+
+function showNoteContextMenu(noteId, event) {
+  contextNoteId = noteId;
+  const note = notes.find(item => item.id === noteId);
+  contextNotePinned = !!note?.isPinnedInCollection;
+  const shellRect = document.querySelector('.main-shell').getBoundingClientRect();
+  const nextLeft = Math.min((event.clientX - shellRect.left) + 10, shellRect.width - 108);
+  const nextTop = Math.min(event.clientY - shellRect.top, shellRect.height - 112);
+  noteContextMenu.style.left = `${Math.max(0, nextLeft)}px`;
+  noteContextMenu.style.top = `${Math.max(0, nextTop)}px`;
+  noteContextMenu.classList.remove('hidden');
+  pinNoteCardBtn.textContent = contextNotePinned ? '取消置顶' : '置顶';
+}
+
+function hideNoteContextMenu() {
+  contextNoteId = null;
+  contextNotePinned = false;
+  noteContextMenu.classList.add('hidden');
 }
 
 async function beginCollectionRename(collectionId) {
@@ -243,7 +506,7 @@ async function handleDeleteCollection() {
   const collectionId = contextCollectionId;
   const collection = collections.find(item => item.id === collectionId);
   hideCollectionContextMenu();
-  if (!collection || collection.isDefault) return;
+  if (!collection || collection.isDefault || collection.isPrivate) return;
   pendingDeleteCollectionId = collectionId;
   collectionDeleteModal.classList.remove('hidden');
 }
@@ -302,26 +565,47 @@ function createTagChip(text, palette) {
   return chip;
 }
 
+function createMetaCount(iconPath, alt, count) {
+  const item = document.createElement('span');
+  item.className = 'note-meta-count';
+  item.innerHTML = `<img src="${iconPath}" alt="${alt}" /><span>${count}</span>`;
+  return item;
+}
+
+function getCollectionDisplayName(collection) {
+  return collection?.name || '';
+}
+
 function getDefaultCollection() {
   return collections.find(collection => collection.isDefault) || collections[0] || null;
 }
 
 function getTagColorClass(tag) {
   const palettes = [
-    { background: '#dbeeff', color: '#2a74d7' },
-    { background: '#ffd8e5', color: '#d94d78' },
-    { background: '#ddf6d8', color: '#4f9550' },
-    { background: '#fff0bf', color: '#b78416' },
-    { background: '#eadcff', color: '#7b51d1' },
-    { background: '#dff6f2', color: '#2a8f85' },
-    { background: '#ffe4cf', color: '#cf6a2e' },
-    { background: '#dde8ff', color: '#4769cc' }
+    { background: '#F6F8D9', color: '#6C7A16' },
+    { background: '#EAF7E5', color: '#46733D' },
+    { background: '#E7F6F7', color: '#2D6E74' },
+    { background: '#EEF1FF', color: '#4E5FAE' },
+    { background: '#F5EDFF', color: '#7855A8' },
+    { background: '#FFEFF6', color: '#A64F7A' },
+    { background: '#FFF2E7', color: '#A66632' },
+    { background: '#FFF8DE', color: '#92701E' }
   ];
-  const hash = Array.from(String(tag || '')).reduce((sum, char, index) => sum + (char.charCodeAt(0) * (index + 1)), 0);
-  return palettes[hash % palettes.length];
+  const hash = Array.from(String(tag || '')).reduce((sum, char, index) => sum + (char.charCodeAt(0) * (index + 17)), 0);
+  return palettes[Math.abs(hash) % palettes.length];
 }
 
 function renderNotes() {
+  if (isPrivateCollectionLocked()) {
+    notesGrid.innerHTML = '';
+    noteCount.textContent = '0';
+    notesArea.classList.add('empty');
+    updateSelectionUi();
+    renderSortMenu();
+    updateScrollIndicator();
+    return;
+  }
+
   notesGrid.innerHTML = '';
   noteCount.textContent = notes.length.toString();
   notesArea.classList.toggle('empty', notes.length === 0);
@@ -329,7 +613,7 @@ function renderNotes() {
   const newCard = document.createElement('div');
   newCard.className = 'note-card new-note';
   newCard.dataset.noteAction = 'new';
-  newCard.innerHTML = '<img src="./assets/icons/新增笔记1.svg" alt="新增笔记" class="new-note-icon" /><span>NEW NOTE</span>';
+  newCard.innerHTML = '<img src="./assets/icons/add-note-new.svg" alt="新增笔记" class="new-note-icon" /><span>NEW NOTE</span>';
   notesGrid.appendChild(newCard);
 
   notes.forEach(note => {
@@ -358,10 +642,17 @@ function renderNotes() {
     if (imageAttachment) {
       const img = document.createElement('img');
       img.className = 'note-thumb';
-      resolveAssetUrl(imageAttachment.path).then(url => {
+      img.draggable = false;
+      resolveAssetUrl(imageAttachment.thumbnailPath || imageAttachment.path).then(url => {
         img.src = url;
       });
       card.appendChild(img);
+    }
+
+    if (note.isPinnedInCollection) {
+      const pinLine = document.createElement('span');
+      pinLine.className = 'note-card-pin-line';
+      card.appendChild(pinLine);
     }
 
     const title = document.createElement('div');
@@ -389,16 +680,35 @@ function renderNotes() {
     counts.className = 'note-meta-counts';
     const imageCount = (note.attachments || []).filter(att => att.type === 'image').length;
     const audioCount = (note.attachments || []).filter(att => att.type === 'audio').length;
-    counts.textContent = imageCount > 0 ? `图片 ${imageCount}  录音 ${audioCount}` : `录音 ${audioCount}`;
+    if (imageCount > 0) {
+      counts.appendChild(createMetaCount('./assets/icons/pic.svg', '图片', imageCount));
+    }
+    if (audioCount > 0) {
+      counts.appendChild(createMetaCount('./assets/icons/voice.svg', '录音', audioCount));
+    }
 
     meta.appendChild(tagWrap);
-    meta.appendChild(counts);
+    if (counts.childElementCount > 0) {
+      meta.appendChild(counts);
+    }
     card.appendChild(meta);
 
     card.addEventListener('click', event => {
+      if (Date.now() < suppressCardClickUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (selectionMode) return;
       event.stopPropagation();
       api.invoke('app:show-note', note.id);
+    });
+
+    card.addEventListener('contextmenu', event => {
+      if (selectionMode) return;
+      event.preventDefault();
+      event.stopPropagation();
+      showNoteContextMenu(note.id, event);
     });
 
     notesGrid.appendChild(card);
@@ -410,6 +720,11 @@ function renderNotes() {
 }
 
 function handleNotesGridClick(event) {
+  if (Date.now() < suppressCardClickUntil) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   const newNoteCard = event.target.closest('[data-note-action="new"]');
   if (newNoteCard) {
     createNewNoteAndOpen();
@@ -437,6 +752,7 @@ function hydrateMoveCollectionSelect() {
   if (!moveCollectionSelect) return;
   moveCollectionSelect.innerHTML = '<option value="">移动到...</option>';
   collections.forEach(collection => {
+    if (collection.id === privateCollectionId) return;
     const option = document.createElement('option');
     option.value = collection.id;
     option.textContent = collection.name;
@@ -448,15 +764,25 @@ function handleDragStart(event) {
   draggedId = event.currentTarget.dataset.noteId;
   event.currentTarget.classList.add('dragging');
   event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', draggedId);
 }
 
 function handleDragEnd(event) {
   event.currentTarget.classList.remove('dragging');
+  Array.from(notesGrid.querySelectorAll('.note-card.drag-over')).forEach(card => {
+    card.classList.remove('drag-over');
+  });
   draggedId = null;
 }
 
 function handleDragOver(event) {
   event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  Array.from(notesGrid.querySelectorAll('.note-card.drag-over')).forEach(card => {
+    if (card !== event.currentTarget) {
+      card.classList.remove('drag-over');
+    }
+  });
   event.currentTarget.classList.add('drag-over');
 }
 
@@ -469,12 +795,25 @@ async function handleDrop(event) {
   const target = event.currentTarget;
   target.classList.remove('drag-over');
   if (!draggedId || draggedId === target.dataset.noteId) return;
-  const draggedEl = notesGrid.querySelector(`[data-note-id="${draggedId}"]`);
-  if (!draggedEl) return;
-  const rect = target.getBoundingClientRect();
-  const isBefore = event.clientY < rect.top + rect.height / 2;
-  notesGrid.insertBefore(draggedEl, isBefore ? target : target.nextSibling);
-  await saveCustomOrder();
+  suppressCardClickUntil = Date.now() + 220;
+  const orderedIds = Array.from(notesGrid.querySelectorAll('[data-note-id]'))
+    .map(card => card.dataset.noteId)
+    .filter(Boolean);
+  const draggedIndex = orderedIds.indexOf(draggedId);
+  const targetIndex = orderedIds.indexOf(target.dataset.noteId);
+  if (draggedIndex < 0 || targetIndex < 0) return;
+  const nextOrderedIds = orderedIds.slice();
+  [nextOrderedIds[draggedIndex], nextOrderedIds[targetIndex]] = [nextOrderedIds[targetIndex], nextOrderedIds[draggedIndex]];
+  const orderMap = new Map(nextOrderedIds.map((id, index) => [id, index]));
+  notes = notes
+    .slice()
+    .sort((a, b) => (orderMap.get(a.id) ?? 9999) - (orderMap.get(b.id) ?? 9999))
+    .map(note => ({ ...note, order: orderMap.get(note.id) ?? note.order }));
+  renderNotes();
+  await api.invoke('data:update-orders', notes.map((note, index) => ({
+    id: note.id,
+    order: index
+  })));
 }
 
 async function saveCustomOrder() {
@@ -520,12 +859,30 @@ function toggleNoteSelection(noteId) {
   renderNotes();
 }
 
+function toggleSelectAllNotes() {
+  if (!selectionMode) return;
+  if (selectedNoteIds.size === notes.length && notes.length > 0) {
+    selectedNoteIds.clear();
+  } else {
+    selectedNoteIds = new Set(notes.map(note => note.id));
+  }
+  updateSelectionUi();
+  renderNotes();
+}
+
 function updateSelectionUi() {
   selectionBar.classList.toggle('hidden', !selectionMode);
   selectionCount.textContent = `已选择 ${selectedNoteIds.size} 条`;
+  if (selectAllBtn) {
+    selectAllBtn.textContent = selectedNoteIds.size === notes.length && notes.length > 0 ? '取消全选' : '全选';
+    selectAllBtn.disabled = notes.length === 0;
+  }
   deleteSelectionBtn.disabled = selectedNoteIds.size === 0;
   moveSelectionBtn.disabled = selectedNoteIds.size === 0;
   exportSelectionBtn.disabled = selectedNoteIds.size === 0;
+  if (mergeSelectionBtn) {
+    mergeSelectionBtn.disabled = selectedNoteIds.size < 2;
+  }
 }
 
 async function deleteSelectedNotes() {
@@ -533,6 +890,65 @@ async function deleteSelectedNotes() {
   const confirmed = window.confirm(`确认删除已选择的 ${selectedNoteIds.size} 条笔记吗？`);
   if (!confirmed) return;
   await api.invoke('data:delete-notes', Array.from(selectedNoteIds));
+  selectedNoteIds.clear();
+  toggleSelectionMode(false);
+}
+
+async function pinNoteFromCard() {
+  if (!contextNoteId) return;
+  const noteId = contextNoteId;
+  const nextPinned = !contextNotePinned;
+  hideNoteContextMenu();
+  await api.invoke('data:update-note', {
+    noteId,
+    patch: {
+      isPinnedInCollection: nextPinned
+    }
+  });
+}
+
+async function exportNoteImageFromCard() {
+  if (!contextNoteId) return;
+  const noteId = contextNoteId;
+  hideNoteContextMenu();
+  const exportPath = await api.invoke('data:export-note-image', noteId);
+  setSettingsStatus(exportPath ? `已导出图片并复制到剪贴板：${exportPath}` : '未导出图片');
+}
+
+async function deleteNoteFromCard() {
+  if (!contextNoteId) return;
+  const noteId = contextNoteId;
+  hideNoteContextMenu();
+  const confirmed = window.confirm('确认删除这条笔记吗？');
+  if (!confirmed) return;
+  await api.invoke('data:delete-notes', [noteId]);
+}
+
+async function mergeSelectedNotes() {
+  if (selectedNoteIds.size < 2) return;
+  const orderedSelected = notes
+    .filter(note => selectedNoteIds.has(note.id))
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  const [firstNote, ...restNotes] = orderedSelected;
+  if (!firstNote) return;
+  const mergedContent = [
+    firstNote.content || '',
+    ...restNotes.map(note => note.content || '')
+  ].filter(Boolean).join('<br>');
+  const mergedAttachments = [
+    ...(firstNote.attachments || []),
+    ...restNotes.flatMap(note => note.attachments || [])
+  ];
+  await api.invoke('data:update-note', {
+    noteId: firstNote.id,
+    patch: {
+      content: mergedContent,
+      attachments: mergedAttachments
+    }
+  });
+  if (restNotes.length) {
+    await api.invoke('data:delete-notes', restNotes.map(note => note.id));
+  }
   selectedNoteIds.clear();
   toggleSelectionMode(false);
 }
@@ -564,14 +980,16 @@ function toggleSettings(force) {
   settingsOpen = typeof force === 'boolean' ? force : !settingsOpen;
   settingsPanel.classList.toggle('hidden', !settingsOpen);
   openSettings.classList.toggle('active', settingsOpen);
+  document.body.classList.toggle('settings-open', settingsOpen);
 }
 
 function hydrateSettingsPanel() {
   if (!configCache) return;
   dataPathValue.textContent = configCache.dataPath || '未找到存储路径';
-  shortcutInput.value = configCache.shortcut || 'Ctrl+Shift+N';
-  themeToggle.checked = configCache.theme === 'soft';
+  backupIntervalInput.value = String(Math.max(0, Number(configCache.autoBackupIntervalDays) || 0));
+  shortcutInput.value = configCache.shortcut || 'Ctrl+Q';
   rememberModeToggle.checked = configCache.rememberState !== false;
+  clipboardToggle.checked = configCache.readClipboardOnQuicknote === true;
 }
 
 function setSettingsStatus(message) {
@@ -579,22 +997,45 @@ function setSettingsStatus(message) {
 }
 
 async function saveSettings() {
-  const shortcut = shortcutInput.value.trim() || 'Ctrl+Shift+N';
-  const theme = themeToggle.checked ? 'soft' : 'light';
+  const shortcut = shortcutInput.value.trim() || 'Ctrl+Q';
   const rememberState = rememberModeToggle.checked;
-  await saveConfig({ shortcut, theme, rememberState });
+  const readClipboardOnQuicknote = clipboardToggle.checked;
+  const autoBackupIntervalDays = Math.max(0, Number.parseInt(backupIntervalInput.value, 10) || 0);
+  backupIntervalInput.value = String(autoBackupIntervalDays);
+  await saveConfig({ shortcut, rememberState, readClipboardOnQuicknote, autoBackupIntervalDays });
   setSettingsStatus('设置已保存');
+}
+
+async function saveToggleSettingsImmediately() {
+  const rememberState = rememberModeToggle.checked;
+  const readClipboardOnQuicknote = clipboardToggle.checked;
+  await saveConfig({ rememberState, readClipboardOnQuicknote });
+  setSettingsStatus('设置已即时生效');
+}
+
+async function saveBackupIntervalSettings() {
+  const autoBackupIntervalDays = Math.max(0, Number.parseInt(backupIntervalInput.value, 10) || 0);
+  backupIntervalInput.value = String(autoBackupIntervalDays);
+  await saveConfig({ autoBackupIntervalDays });
+  setSettingsStatus(autoBackupIntervalDays > 0
+    ? `自动备份周期已设为 ${autoBackupIntervalDays} 天`
+    : '自动备份已关闭');
 }
 
 async function createNewNoteAndOpen() {
   try {
+    if (isPrivateCollectionLocked()) {
+      privatePasswordInput.focus();
+      return;
+    }
     setBuildStamp('new note: click');
     let collectionId = currentCollectionId;
     if (collectionId === 'all') {
-      collectionId = configCache?.lastCollectionId || collections[0]?.id;
+      const preferredCollection = collections.find(item => item.id === configCache?.lastCollectionId && item.id !== privateCollectionId);
+      collectionId = preferredCollection?.id || getDefaultCollection()?.id || collections.find(item => item.id !== privateCollectionId)?.id;
     }
     if (collectionId === 'all' || !collections.some(item => item.id === collectionId)) {
-      collectionId = collections[0]?.id || '';
+      collectionId = getDefaultCollection()?.id || collections.find(item => item.id !== privateCollectionId)?.id || '';
     }
     if (!collectionId) {
       setBuildStamp('new note: creating default collection');
@@ -615,6 +1056,69 @@ async function createNewNoteAndOpen() {
   }
 }
 
+async function openPrivateCollectionFromSettings() {
+  privateCollectionOpening = true;
+  try {
+    const collection = await api.invoke('data:ensure-private-collection');
+    forcedCollectionId = collection?.id || forcedCollectionId;
+    await loadPrivateCollectionState();
+    forcedCollectionId = collection?.id || privateCollectionId || null;
+    currentCollectionId = collection?.id || privateCollectionId;
+    privateCollectionUnlocked = false;
+    toggleSettings(false);
+    if (configCache?.rememberState !== false) {
+      await saveConfig({ lastCollectionId: currentCollectionId });
+    }
+    await loadData();
+    updatePrivateCollectionGate();
+    window.setTimeout(() => {
+      privatePasswordInput?.focus();
+    }, 30);
+  } finally {
+    privateCollectionOpening = false;
+  }
+}
+
+async function submitPrivateCollectionPassword() {
+  if (!isPrivateCollectionSelected()) return;
+  const password = privatePasswordInput.value.trim();
+  if (!password) {
+    setPrivateCollectionStatus('请输入密码。', 'error');
+    return;
+  }
+
+  if (!privateCollectionHasPassword) {
+    const confirmPassword = privatePasswordConfirmInput.value.trim();
+    if (password.length < 4) {
+      setPrivateCollectionStatus('密码至少需要 4 个字符。', 'error');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setPrivateCollectionStatus('两次输入的密码不一致。', 'error');
+      return;
+    }
+    const saved = await api.invoke('data:set-private-password', password);
+    if (!saved) {
+      setPrivateCollectionStatus('密码设置失败，请稍后重试。', 'error');
+      return;
+    }
+    await loadPrivateCollectionState();
+    privateCollectionUnlocked = true;
+    setPrivateCollectionStatus('密码已设置，正在进入隐私收藏夹。', 'success');
+    await loadData();
+    return;
+  }
+
+  const verified = await api.invoke('data:verify-private-password', password);
+  if (!verified) {
+    setPrivateCollectionStatus('密码错误，请重新输入。', 'error');
+    return;
+  }
+  privateCollectionUnlocked = true;
+  setPrivateCollectionStatus('');
+  await loadData();
+}
+
 function showCollectionInput() {
   if (collectionInputWrap.querySelector('input')) {
     collectionInputWrap.querySelector('input').focus();
@@ -625,11 +1129,16 @@ function showCollectionInput() {
   input.placeholder = '收藏夹名';
   collectionInputWrap.appendChild(input);
   input.focus();
+  requestAnimationFrame(updateCollectionOverflowState);
 
+  let finished = false;
   const finish = async () => {
+    if (finished) return;
+    finished = true;
     const name = input.value.trim();
     if (!name) {
       collectionInputWrap.innerHTML = '';
+      requestAnimationFrame(updateCollectionOverflowState);
       return;
     }
     const collection = await api.invoke('data:create-collection', { name });
@@ -643,11 +1152,15 @@ function showCollectionInput() {
 
   input.addEventListener('keydown', event => {
     if (event.key === 'Enter') finish();
-    if (event.key === 'Escape') collectionInputWrap.innerHTML = '';
+    if (event.key === 'Escape') {
+      collectionInputWrap.innerHTML = '';
+      requestAnimationFrame(updateCollectionOverflowState);
+    }
   });
   input.addEventListener('blur', () => {
     if (!input.value.trim()) {
       collectionInputWrap.innerHTML = '';
+      requestAnimationFrame(updateCollectionOverflowState);
       return;
     }
     finish();
@@ -655,6 +1168,16 @@ function showCollectionInput() {
 }
 
 searchInput?.addEventListener('input', () => loadData());
+
+searchPill?.addEventListener('mousedown', () => {
+  searchPill.classList.remove('is-pressed');
+  void searchPill.offsetWidth;
+  searchPill.classList.add('is-pressed');
+});
+
+searchPill?.addEventListener('animationend', () => {
+  searchPill.classList.remove('is-pressed');
+});
 
 sortBtn?.addEventListener('click', event => {
   event.stopPropagation();
@@ -682,6 +1205,10 @@ selectBtn?.addEventListener('click', () => {
   toggleSelectionMode();
 });
 
+selectAllBtn?.addEventListener('click', () => {
+  toggleSelectAllNotes();
+});
+
 openSettings?.addEventListener('click', event => {
   event.stopPropagation();
   toggleSettings();
@@ -696,8 +1223,8 @@ openDataFolderBtn?.addEventListener('click', async () => {
   setSettingsStatus(result ? '已打开存储文件夹' : '打开失败，请稍后重试');
 });
 
-exportAllBtn?.addEventListener('click', async () => {
-  await exportSelectedNotes([]);
+openPrivateCollectionBtn?.addEventListener('click', () => {
+  openPrivateCollectionFromSettings();
 });
 
 backupDataBtn?.addEventListener('click', async () => {
@@ -705,12 +1232,56 @@ backupDataBtn?.addEventListener('click', async () => {
   setSettingsStatus(backupPath ? `备份已创建：${backupPath}` : '备份失败');
 });
 
+importBackupBtn?.addEventListener('click', async () => {
+  const importPath = await api.invoke('data:import-backup');
+  setSettingsStatus(importPath ? `已导入备份：${importPath}` : '未导入备份');
+});
+
+saveBackupIntervalBtn?.addEventListener('click', () => {
+  saveBackupIntervalSettings();
+});
+
+backupIntervalInput?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    saveBackupIntervalSettings();
+  }
+});
+
 saveShortcutBtn?.addEventListener('click', () => {
   saveSettings();
 });
 
+rememberModeToggle?.addEventListener('change', () => {
+  saveToggleSettingsImmediately();
+});
+
+clipboardToggle?.addEventListener('change', () => {
+  saveToggleSettingsImmediately();
+});
+
 addCollectionBtn?.addEventListener('click', () => {
   showCollectionInput();
+});
+
+privatePasswordToggle?.addEventListener('click', () => {
+  privatePasswordVisible = !privatePasswordVisible;
+  privatePasswordInput.type = privatePasswordVisible ? 'text' : 'password';
+  privatePasswordConfirmInput.type = privatePasswordVisible ? 'text' : 'password';
+  syncPrivatePasswordToggleIcon();
+});
+
+privateCollectionSubmit?.addEventListener('click', () => {
+  submitPrivateCollectionPassword();
+});
+
+[privatePasswordInput, privatePasswordConfirmInput].forEach(input => {
+  input?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitPrivateCollectionPassword();
+    }
+  });
 });
 
 renameCollectionBtn?.addEventListener('click', () => {
@@ -721,6 +1292,18 @@ renameCollectionBtn?.addEventListener('click', () => {
 
 deleteCollectionBtn?.addEventListener('click', () => {
   handleDeleteCollection();
+});
+
+pinNoteCardBtn?.addEventListener('click', () => {
+  pinNoteFromCard();
+});
+
+exportNoteImageBtn?.addEventListener('click', () => {
+  exportNoteImageFromCard();
+});
+
+deleteNoteCardBtn?.addEventListener('click', () => {
+  deleteNoteFromCard();
 });
 
 cancelCollectionDeleteBtn?.addEventListener('click', () => {
@@ -737,6 +1320,10 @@ moveSelectionBtn?.addEventListener('click', () => {
 
 exportSelectionBtn?.addEventListener('click', () => {
   exportSelectedNotes(Array.from(selectedNoteIds));
+});
+
+mergeSelectionBtn?.addEventListener('click', () => {
+  mergeSelectedNotes();
 });
 
 cancelSelectionBtn?.addEventListener('click', () => {
@@ -761,6 +1348,12 @@ minimizeBtn?.addEventListener('click', async event => {
 
 notesScroll?.addEventListener('scroll', updateScrollIndicator);
 notesGrid?.addEventListener('click', handleNotesGridClick);
+window.addEventListener('resize', updateCollectionOverflowState);
+mainEdgeZones.forEach(edge => {
+  edge.addEventListener('dblclick', () => {
+    api.invoke('app:toggle-main-expanded');
+  });
+});
 
 document.addEventListener('click', event => {
   if (!sortMenu.classList.contains('hidden') && !sortMenu.contains(event.target) && event.target !== sortBtn && !sortBtn.contains(event.target)) {
@@ -769,19 +1362,30 @@ document.addEventListener('click', event => {
   if (!collectionContextMenu.classList.contains('hidden') && !collectionContextMenu.contains(event.target)) {
     hideCollectionContextMenu();
   }
+  if (!noteContextMenu.classList.contains('hidden') && !noteContextMenu.contains(event.target)) {
+    hideNoteContextMenu();
+  }
   if (!collectionDeleteModal.classList.contains('hidden') && event.target === collectionDeleteModal) {
     closeDeleteCollectionModal();
   }
 });
 
 api.on('data:updated', async () => {
+  if (privateCollectionOpening) return;
+  const shouldRestorePrivateView = privateCollectionEnabled && currentCollectionId === privateCollectionId;
   await loadConfig();
+  if (shouldRestorePrivateView && privateCollectionId) {
+    forcedCollectionId = privateCollectionId;
+    currentCollectionId = privateCollectionId;
+    privateCollectionUnlocked = true;
+  }
   await loadData();
 });
 
 async function init() {
   try {
     setBuildStamp('init: loading');
+    syncPrivatePasswordToggleIcon();
     await loadConfig();
     hydrateSettingsPanel();
     await loadData();

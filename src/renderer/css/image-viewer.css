@@ -3,7 +3,7 @@ body {
   width: 100%;
   height: 100%;
   margin: 0;
-  background: #121212;
+  background: transparent;
 }
 
 .viewer-shell {
@@ -11,8 +11,12 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #121212;
+  background: rgba(18, 18, 18, 0.96);
   color: #fff;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
 }
 
 .viewer-topbar {
@@ -37,6 +41,7 @@ body {
   font-size: 24px;
   line-height: 1;
   background: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
 }
 
 .viewer-stage {
@@ -44,6 +49,7 @@ body {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) 72px;
   align-items: center;
+  min-height: 0;
 }
 
 .viewer-canvas {
@@ -51,7 +57,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 28px 0;
+  padding: 18px 0 10px;
+  min-height: 0;
+  overflow: hidden;
+  cursor: default;
+}
+
+.viewer-canvas.is-draggable {
+  cursor: grab;
+}
+
+.viewer-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+.viewer-pan-surface {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .viewer-image {
@@ -60,6 +85,7 @@ body {
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
+  transform-origin: center center;
 }
 
 .viewer-nav {
@@ -75,4 +101,27 @@ body {
 .viewer-nav:disabled {
   opacity: 0.25;
   cursor: default;
+}
+
+.viewer-note-wrap {
+  padding: 0 18px 18px;
+}
+
+.viewer-remark-input {
+  width: 100%;
+  min-height: 72px;
+  max-height: 120px;
+  resize: vertical;
+  border: none;
+  outline: none;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.viewer-remark-input::placeholder {
+  color: rgba(255, 255, 255, 0.42);
 }

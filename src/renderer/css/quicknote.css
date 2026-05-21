@@ -6,40 +6,135 @@ body {
 .quicknote-shell {
   width: 100vw;
   height: 100vh;
-  padding: 14px;
+  padding: 14px 16px 14px 14px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
 }
 
 .quicknote-card {
   width: 100%;
   height: 100%;
-  background: var(--panel);
+  margin-top: auto;
+  background: rgba(255, 255, 255, 1);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-strong);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 14px rgba(29, 35, 18, 0.1), 0 2px 5px rgba(29, 35, 18, 0.06);
+  backdrop-filter: blur(36px) saturate(170%);
+  -webkit-backdrop-filter: blur(36px) saturate(170%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: height 150ms var(--ease-out);
+  outline: none;
+}
+
+.quicknote-card:focus,
+.quicknote-card:focus-visible {
+  outline: none;
+}
+
+.quicknote-card.is-adjusting-opacity {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.quicknote-shell.mini .quicknote-card {
+  height: 135px;
+  background: rgba(162, 201, 33, 1);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 14px rgba(76, 101, 13, 0.13), 0 2px 5px rgba(76, 101, 13, 0.08);
+}
+
+.quicknote-shell.expanded .quicknote-card {
+  height: 100%;
 }
 
 .quicknote-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px 8px;
-  background: #F8F8F8;
+  padding: 12px 12px 8px 16px;
+  background: transparent;
+  position: relative;
+}
+
+.quicknote-header-focus-zone {
+  display: none;
+}
+
+#closeQuicknote {
+  transform: translateX(2px);
+  position: relative;
+  z-index: 2;
 }
 
 .archive-select {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
   color: var(--accent);
   font-weight: 600;
+  transform: translateY(2px);
+  position: relative;
+  z-index: 2;
 }
 
 .archive-select select {
+  appearance: none;
   border: none;
   background: transparent;
   color: var(--accent);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
+  outline: none;
+  padding: 0 10px 0 0;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 6px) 50%, calc(100% - 2px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.archive-select select option {
+  color: #8fb23e;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.path-divider {
+  color: rgba(143, 178, 62, 0.7);
+}
+
+.quicknote-shell.mini .archive-select,
+.quicknote-shell.mini .path-divider {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.quicknote-shell.mini .archive-select select {
+  color: rgba(255, 255, 255, 0.95);
+  background: transparent;
+  padding-right: 12px;
+  background-position: calc(100% - 7px) 50%, calc(100% - 3px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.quicknote-shell.mini .archive-select {
+  font-size: 12.5px;
+}
+
+.quicknote-shell.mini .archive-select select {
+  font-size: 12.5px;
+  padding: 0 10px 0 0;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.95) 50%), linear-gradient(135deg, rgba(255, 255, 255, 0.95) 50%, transparent 50%);
+  background-position: calc(100% - 6px) 50%, calc(100% - 2px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.quicknote-shell.mini .archive-select select option {
+  color: #8fb23e;
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .quicknote-body {
@@ -49,48 +144,142 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
 }
 
 .title-input {
   border: none;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   outline: none;
+  transform: translateY(5px);
 }
 
 .content-editor {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: 180px;
   border-radius: 10px;
-  background: #ffffff;
+  background: transparent;
   padding: 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.content-editor:focus,
+.content-editor:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.content-editor[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(104, 112, 80, 0.55);
+  pointer-events: none;
+}
+
+.quicknote-shell.mini .content-editor {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.quicknote-shell.mini .content-editor[data-placeholder]:empty::before {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.quicknote-shell.mini .quicknote-body {
+  padding: 0 12px -2px;
+  gap: 4px;
+}
+
+.quicknote-shell.mini .title-input,
+.quicknote-shell.mini .attachments,
+.quicknote-shell.mini #recordBtn,
+.quicknote-shell.mini #highlightBtn,
+.quicknote-shell.mini #boldBtn,
+.quicknote-shell.mini #noteSelect,
+.quicknote-shell.mini #notePathDivider {
+  display: none;
+}
+
+.quicknote-shell.mini .content-editor {
+  flex: 0 0 auto;
+  min-height: 48px;
+  max-height: 48px;
+  border-radius: 14px;
+  padding: 4px 12px 6px;
+  line-height: 1.35;
+  overflow: hidden;
+  transform: translateY(-1px);
 }
 
 .attachments {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transform: translateY(6px);
+}
+
+.attachment-item {
+  position: relative;
+  width: 100%;
+}
+
+.attachment-item.dragging {
+  opacity: 0.68;
+}
+
+.attachment-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(31, 31, 31, 0.58);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease-out);
+}
+
+.attachment-item:hover .attachment-delete-btn,
+.attachment-item:focus-within .attachment-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .attachment-thumb {
-  width: 52px;
-  height: 52px;
+  width: 100%;
+  height: 88px;
   border-radius: 8px;
   object-fit: cover;
   background: #ececec;
 }
 
 .attachment-image-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 12px) / 3.5);
   gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .attachment-thumb-btn {
+  width: 100%;
   background: transparent;
   border-radius: 8px;
   overflow: hidden;
@@ -103,6 +292,7 @@ body {
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .audio-chip {
@@ -116,11 +306,16 @@ body {
   background: #f1f4e6;
   border-radius: 12px;
   color: #52611f;
+  width: 100%;
 }
 
 .audio-chip.active,
 .audio-chip:hover {
   background: rgba(168, 201, 64, 0.24);
+}
+
+.audio-chip.recording {
+  background: rgba(162, 201, 33, 0.3);
 }
 
 .audio-chip-label {
@@ -135,32 +330,170 @@ body {
 
 .quicknote-footer {
   display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 10px 18px 14px 16px;
+  background: transparent;
+}
+
+.quicknote-shell.mini .quicknote-footer {
+  margin-top: auto;
+  padding: 8px 14px 12px 12px;
+  gap: 8px;
+}
+
+.quicknote-toolbar-frame {
+  display: inline-flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px 14px;
+  min-height: 30px;
+  padding: 0 3px 0 0;
+  border-radius: 10px;
+  background: #f8f8f8;
+  overflow: hidden;
+}
+
+.quicknote-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.quicknote-toolbar-group-accent {
+  align-self: stretch;
+  padding: 0 10px;
+  border-radius: 13px;
+  background: #f8fbea;
+}
+
+.quicknote-toolbar-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(50, 55, 59, 0.28);
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.expand-quicknote-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.32);
+  color: #566b22;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.expand-quicknote-btn:hover {
+  background: rgba(255, 255, 255, 0.42);
+  transform: translateY(-1px);
 }
 
 .save-quicknote-btn {
   margin-left: auto;
-  min-width: 78px;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 10px;
-  background: #A8C940;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: left bottom;
 }
 
 .save-quicknote-btn:hover {
-  background: #97b737;
+  background: rgba(162, 201, 33, 0.08);
+}
+
+.save-quicknote-btn.is-saving {
+  animation: save-feedback 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.quicknote-shell.expanded .expand-quicknote-btn {
+  display: none;
+}
+
+.quicknote-shell.expanded .quicknote-toolbar-frame {
+  margin-left: 0;
+}
+
+.quicknote-shell.expanded .save-quicknote-btn {
+  margin-left: auto;
+  align-self: flex-end;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn,
+.quicknote-shell.mini .save-quicknote-btn,
+.quicknote-shell.mini .toolbar-btn {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn:hover,
+.quicknote-shell.mini .save-quicknote-btn:hover,
+.quicknote-shell.mini .toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.quicknote-shell.mini .save-quicknote-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+
+.quicknote-shell.mini .quicknote-toolbar-frame {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 0;
+}
+
+.quicknote-shell.mini .quicknote-toolbar-group-accent,
+.quicknote-shell.mini .quicknote-toolbar-divider {
+  display: none;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 15px;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn:hover {
+  background: transparent;
+  transform: translateY(-1px);
+}
+
+.expand-quicknote-btn img {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.quicknote-shell.mini .expand-quicknote-btn img {
+  width: 16px;
+  height: 16px;
 }
 
 .toolbar-btn {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: #f0f2e6;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -168,11 +501,41 @@ body {
 }
 
 .toolbar-btn:hover {
-  background: rgba(168, 201, 64, 0.2);
+  background: rgba(255, 255, 255, 0.42);
   transform: translateY(-1px);
 }
 
 .toolbar-btn img {
   width: 18px;
   height: 18px;
+}
+
+.save-quicknote-btn img {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+@keyframes save-feedback {
+  0% {
+    transform: scale(1);
+  }
+  36% {
+    transform: scale(1.33);
+  }
+  58% {
+    transform: scale(1.12);
+  }
+  76% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.quicknote-body::-webkit-scrollbar,
+.attachment-image-row::-webkit-scrollbar,
+.audio-strip::-webkit-scrollbar {
+  display: none;
 }

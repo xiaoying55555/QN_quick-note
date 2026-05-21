@@ -4,20 +4,58 @@ body {
 }
 
 .note-shell {
+  position: relative;
   width: 100vw;
   height: 100vh;
   padding: 14px;
 }
 
 .note-card {
+  position: relative;
   width: 100%;
   height: 100%;
-  background: var(--panel);
+  background: rgba(255, 255, 255, 1);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-strong);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 14px rgba(29, 35, 18, 0.1), 0 2px 5px rgba(29, 35, 18, 0.06);
+  backdrop-filter: blur(36px) saturate(170%);
+  -webkit-backdrop-filter: blur(36px) saturate(170%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: opacity 120ms var(--ease-out);
+  outline: none;
+}
+
+.note-card:focus,
+.note-card:focus-visible {
+  outline: none;
+}
+
+.note-card.is-adjusting-opacity {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.note-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.98);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms var(--ease-out);
+  z-index: 5;
+}
+
+.note-card.is-opening::after {
+  opacity: 1;
+}
+
+.note-card.is-opening > * {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .note-header {
@@ -25,41 +63,60 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px 6px;
-  background: #F8F8F8;
+  background: transparent;
   position: relative;
+}
+
+.note-header-focus-zone {
+  display: none;
 }
 
 .note-header-center {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, 2px);
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   max-width: calc(100% - 120px);
   color: #8fb23e;
   font-size: 12px;
   font-weight: 600;
+  z-index: 2;
 }
 
 .note-collection-select {
-  max-width: 104px;
+  max-width: 148px;
   border: none;
   background: transparent;
   color: #8fb23e;
   font-size: 12px;
   font-weight: 600;
-  text-align: right;
-  text-align-last: right;
+  text-align: center;
+  text-align-last: center;
   outline: none;
   cursor: pointer;
+  padding: 0 10px 0 0;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 6px) 50%, calc(100% - 2px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.note-collection-select option {
+  color: #8fb23e;
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .note-header-title {
-  max-width: 128px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
+}
+
+#closeNote {
+  transform: translateX(2px);
+  position: relative;
+  z-index: 2;
 }
 
 .pin-toggle {
@@ -71,6 +128,8 @@ body {
   align-items: center;
   justify-content: center;
   transition: transform 150ms var(--ease-out), background 150ms var(--ease-out), opacity 150ms var(--ease-out);
+  position: relative;
+  z-index: 2;
 }
 
 .pin-toggle:hover {
@@ -93,41 +152,114 @@ body {
 
 .note-title {
   border: none;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   outline: none;
   width: 100%;
+  transform: translateY(5px);
 }
 
 .note-body {
   flex: 1;
+  min-height: 0;
   padding: 0 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  overflow: hidden;
+  position: relative;
+  transition: opacity 100ms var(--ease-out);
+}
+
+.note-body.is-loading {
+  opacity: 0;
+}
+
+.note-body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 248, 244, 0.82));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-out);
+}
+
+.note-body.is-loading::after {
+  opacity: 1;
+}
+
+.note-card.is-opening .attachments,
+.note-card.is-opening .content-editor,
+.note-card.is-opening .tag-row {
+  visibility: hidden;
 }
 
 .attachments {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transform: translateY(6px);
+}
+
+.attachment-item {
+  position: relative;
+  width: 100%;
+}
+
+.attachment-item.dragging {
+  opacity: 0.68;
+}
+
+.attachment-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(31, 31, 31, 0.58);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease-out);
+}
+
+.attachment-item:hover .attachment-delete-btn,
+.attachment-item:focus-within .attachment-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .attachment-thumb {
-  width: 58px;
-  height: 58px;
+  width: 100%;
+  height: 74px;
   border-radius: 8px;
   object-fit: cover;
   background: #ececec;
 }
 
 .attachment-image-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 12px) / 3.5);
   gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .attachment-thumb-btn {
+  width: 100%;
   border-radius: 8px;
   overflow: hidden;
   background: transparent;
@@ -140,11 +272,12 @@ body {
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .audio-chip {
-  min-height: 42px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 10px;
   border-radius: 12px;
   background: #f2f5e8;
   display: flex;
@@ -154,11 +287,16 @@ body {
   gap: 2px;
   color: #506021;
   transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+  width: 100%;
 }
 
 .audio-chip:hover,
 .audio-chip.active {
   background: rgba(168, 201, 64, 0.24);
+}
+
+.audio-chip.recording {
+  background: rgba(162, 201, 33, 0.3);
 }
 
 .audio-chip-label {
@@ -173,39 +311,100 @@ body {
 
 .toolbar {
   display: none;
-  gap: 8px;
+  justify-content: space-between;
   align-items: center;
+  width: 100%;
+  min-height: 30px;
+  margin-top: 4px;
+  padding: 0 3px 0 0;
+  border-radius: 10px;
+  background: #f8f8f8;
   font-size: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .toolbar.active {
   display: flex;
 }
 
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.toolbar-group-edit {
+  margin-left: auto;
+}
+
+.toolbar-group-accent {
+  align-self: stretch;
+  padding: 0 8px 0 6px;
+  border-radius: 13px;
+  background: #f8fbea;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(50, 55, 59, 0.28);
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
 .toolbar .tool-btn {
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: #f0f2e6;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: transparent;
   transition: transform 150ms var(--ease-out), background 150ms var(--ease-out);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
+.toolbar .tool-btn img {
+  width: 15px;
+  height: 15px;
+  display: block;
+  object-fit: contain;
+}
+
+#noteStrikeBtn img {
+  width: 13.5px;
+  height: 13.5px;
+}
+
 .toolbar .tool-btn:hover {
-  background: rgba(168, 201, 64, 0.2);
+  background: rgba(168, 201, 64, 0.16);
   transform: translateY(-1px);
+}
+
+.toolbar-group-accent .tool-btn {
+  border-radius: 9px;
 }
 
 .content-editor {
   flex: 1;
   min-height: 0;
   border-radius: 10px;
-  background: #ffffff;
-  padding: 10px;
-  font-size: var(--content-font-size, 13px);
+  background: transparent;
+  padding: 10px 10px 4px;
+  font-size: var(--content-font-size, 14px);
   line-height: 1.6;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.content-editor:focus,
+.content-editor:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .tag-row {
@@ -213,9 +412,14 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  transform: translateY(-5px);
 }
 
 .tag-row input {
+  flex: 1;
+  min-width: 0;
   border: none;
   border-bottom: 1px solid #d6d8cd;
   background: transparent;
@@ -228,23 +432,73 @@ body {
   font-size: 11px;
   color: var(--muted);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+  gap: 12px;
+  background: transparent;
 }
 
 .save-btn {
-  background: #A8C940;
-  color: #fff;
-  border-radius: 10px;
-  padding: 6px 14px;
-  font-size: 12px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: left bottom;
 }
 
 .save-btn:hover {
-  filter: brightness(0.98);
+  background: rgba(162, 201, 33, 0.08);
+}
+
+.save-btn.is-saving {
+  animation: save-feedback 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .tool-btn img {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.save-btn img {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+@keyframes save-feedback {
+  0% {
+    transform: scale(1);
+  }
+  36% {
+    transform: scale(1.33);
+  }
+  58% {
+    transform: scale(1.12);
+  }
+  76% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.note-resize-handle {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 14px;
+  cursor: ns-resize;
+}
+
+.attachment-image-row::-webkit-scrollbar,
+.audio-strip::-webkit-scrollbar,
+.content-editor::-webkit-scrollbar {
+  display: none;
 }

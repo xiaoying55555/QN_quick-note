@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 
 function getDataDir() {
   return path.join(app.getPath('documents'), 'QuickNote');
@@ -13,18 +14,24 @@ function ensureDir(dirPath) {
   }
 }
 
-function copyDir(sourceDir, targetDir) {
+function copyDir(sourceDir, targetDir, options = {}) {
+  const shouldSkip = typeof options.shouldSkip === 'function' ? options.shouldSkip : () => false;
   ensureDir(targetDir);
   if (!fs.existsSync(sourceDir)) return;
   fs.readdirSync(sourceDir, { withFileTypes: true }).forEach(entry => {
     const sourcePath = path.join(sourceDir, entry.name);
+    if (shouldSkip(sourcePath, entry)) return;
     const targetPath = path.join(targetDir, entry.name);
     if (entry.isDirectory()) {
-      copyDir(sourcePath, targetPath);
+      copyDir(sourcePath, targetPath, options);
       return;
     }
     fs.copyFileSync(sourcePath, targetPath);
   });
+}
+
+function escapePowerShell(value) {
+  return String(value || '').replace(/'/g, "''");
 }
 
 function readJson(filePath, fallback) {
@@ -39,6 +46,85 @@ function readJson(filePath, fallback) {
 
 function writeJson(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(String(password || ''), 'utf8').digest('hex');
+}
+
+function removeDirContents(dirPath) {
+  if (!fs.existsSync(dirPath)) return;
+  fs.readdirSync(dirPath, { withFileTypes: true }).forEach(entry => {
+    const targetPath = path.join(dirPath, entry.name);
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  });
+}
+
+function getBackupRoot() {
+  return path.join(getDataDir(), 'backups');
+}
+
+function createTempWorkspace(prefix) {
+  const workspace = path.join(app.getPath('temp'), `${prefix}-${crypto.randomUUID()}`);
+  ensureDir(workspace);
+  return workspace;
+}
+
+function compressDirectoryToZip(sourceDir, zipPath) {
+  const command = [
+    `$source = '${escapePowerShell(sourceDir)}'`,
+    `$zipPath = '${escapePowerShell(zipPath)}'`,
+    "$null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $zipPath)",
+    "$archiveSource = Join-Path $source '*'",
+    "Compress-Archive -Path $archiveSource -DestinationPath $zipPath -Force"
+  ].join('; ');
+  execFileSync('C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', ['-NoProfile', '-Command', command], {
+    windowsHide: true
+  });
+}
+
+function extractZipToDirectory(zipPath, targetDir) {
+  const command = [
+    `$zipPath = '${escapePowerShell(zipPath)}'`,
+    `$targetDir = '${escapePowerShell(targetDir)}'`,
+    "$null = New-Item -ItemType Directory -Force -Path $targetDir",
+    "Expand-Archive -LiteralPath $zipPath -DestinationPath $targetDir -Force"
+  ].join('; ');
+  execFileSync('C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', ['-NoProfile', '-Command', command], {
+    windowsHide: true
+  });
+}
+
+function pruneBackups(limit = 30) {
+  const backupRoot = getBackupRoot();
+  ensureDir(backupRoot);
+  const backupEntries = fs.readdirSync(backupRoot, { withFileTypes: true })
+    .filter(entry => entry.name.startsWith('backup_'))
+    .map(entry => {
+      const fullPath = path.join(backupRoot, entry.name);
+      const stats = fs.statSync(fullPath);
+      return { fullPath, mtimeMs: stats.mtimeMs };
+    })
+    .sort((left, right) => right.mtimeMs - left.mtimeMs);
+
+  backupEntries.slice(limit).forEach(entry => {
+    fs.rmSync(entry.fullPath, { recursive: true, force: true });
+  });
+}
+
+function getFrontCollectionOrder(notes, collectionId, isPinned) {
+  const groupOrders = getCollectionGroupOrders(notes, collectionId, isPinned);
+  if (!groupOrders.length) return 0;
+  return Math.min(...groupOrders) - 1;
+}
+
+function getFrontPinnedStatusOrder(notes, isPinned) {
+  const groupOrders = notes
+    .filter(note => !!note.isPinnedInCollection === !!isPinned)
+    .map(note => Number(note.order))
+    .filter(order => Number.isFinite(order));
+  if (!groupOrders.length) return 0;
+  return Math.min(...groupOrders) - 1;
 }
 
 function ensureStore() {
@@ -61,7 +147,8 @@ function ensureStore() {
           name: '未归档',
           isDefault: true,
           isPrivate: false,
-          createdAt: now
+          createdAt: now,
+          order: 0
         }
       ],
       notes: []
@@ -69,11 +156,18 @@ function ensureStore() {
     writeJson(dataPath, data);
 
     const config = {
-      shortcut: 'Ctrl+Shift+N',
+      shortcut: 'Ctrl+Q',
       dataPath: dataDir,
       sortMode: 'updatedAt',
       lastCollectionId: defaultCollectionId,
-      theme: 'light'
+      theme: 'light',
+      readClipboardOnQuicknote: false,
+      rememberState: true,
+      autoBackupIntervalDays: 30,
+      lastAutoBackupAt: '',
+      privateCollectionEnabled: false,
+      privateCollectionId: '',
+      privateCollectionPasswordHash: ''
     };
     writeJson(configPath, config);
   } else {
@@ -85,7 +179,8 @@ function ensureStore() {
           name: '未归档',
           isDefault: true,
           isPrivate: false,
-          createdAt: now
+          createdAt: now,
+          order: 0
         }
       ];
       if (!Array.isArray(data.notes)) {
@@ -102,11 +197,18 @@ function ensureStore() {
     }
     if (!fs.existsSync(configPath)) {
       const config = {
-        shortcut: 'Ctrl+Shift+N',
+        shortcut: 'Ctrl+Q',
         dataPath: dataDir,
         sortMode: 'updatedAt',
         lastCollectionId: data.collections[0]?.id || '',
-        theme: 'light'
+        theme: 'light',
+        readClipboardOnQuicknote: false,
+        rememberState: true,
+        autoBackupIntervalDays: 30,
+        lastAutoBackupAt: '',
+        privateCollectionEnabled: false,
+        privateCollectionId: '',
+        privateCollectionPasswordHash: ''
       };
       writeJson(configPath, config);
     }
@@ -121,7 +223,22 @@ function getDataPaths() {
 
 function getData() {
   const { dataPath } = ensureStore();
-  return readJson(dataPath, { collections: [], notes: [] });
+  const data = readJson(dataPath, { collections: [], notes: [] });
+  let dirty = false;
+  data.collections = (data.collections || []).map((collection, index) => {
+    if (typeof collection.order === 'number' && Number.isFinite(collection.order)) {
+      return collection;
+    }
+    dirty = true;
+    return {
+      ...collection,
+      order: index
+    };
+  }).sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+  if (dirty) {
+    saveData(data);
+  }
+  return data;
 }
 
 function saveData(data) {
@@ -133,16 +250,106 @@ function saveData(data) {
 function createCollection({ name }) {
   const data = getData();
   const now = new Date().toISOString();
+  const nextOrder = data.collections.reduce((maxOrder, item) => (
+    Number.isFinite(item.order) ? Math.max(maxOrder, item.order) : maxOrder
+  ), -1) + 1;
   const collection = {
     id: crypto.randomUUID(),
     name: String(name || '').trim(),
     isDefault: false,
     isPrivate: false,
-    createdAt: now
+    createdAt: now,
+    order: nextOrder
   };
   data.collections.push(collection);
   saveData(data);
   return collection;
+}
+
+function ensurePrivateCollection() {
+  const data = getData();
+  const config = getConfig();
+  const now = new Date().toISOString();
+  let collection = null;
+
+  if (config.privateCollectionId) {
+    collection = data.collections.find(item => item.id === config.privateCollectionId) || null;
+  }
+  if (!collection) {
+    collection = data.collections.find(item => item.isPrivate) || null;
+  }
+  if (!collection) {
+    const minOrder = data.collections.reduce((currentMin, item) => (
+      Number.isFinite(item.order) ? Math.min(currentMin, item.order) : currentMin
+    ), 0);
+    collection = {
+      id: crypto.randomUUID(),
+      name: '隐私收藏夹',
+      isDefault: false,
+      isPrivate: true,
+      createdAt: now,
+      order: minOrder - 1
+    };
+    data.collections.unshift(collection);
+  } else {
+    collection.isPrivate = true;
+    if (!collection.name) {
+      collection.name = '隐私收藏夹';
+    }
+    if (!Number.isFinite(collection.order)) {
+      collection.order = 0;
+    }
+  }
+
+  saveData(data);
+  saveConfig({
+    ...config,
+    privateCollectionEnabled: true,
+    privateCollectionId: collection.id
+  });
+  return collection;
+}
+
+function getPrivateCollectionState() {
+  const data = getData();
+  const config = getConfig();
+  const privateCollection = data.collections.find(item => item.isPrivate || item.id === config.privateCollectionId) || null;
+  return {
+    enabled: !!config.privateCollectionEnabled,
+    collectionId: privateCollection?.id || config.privateCollectionId || '',
+    hasPassword: !!config.privateCollectionPasswordHash,
+    name: privateCollection?.name || '隐私收藏夹'
+  };
+}
+
+function setPrivateCollectionEnabled(enabled) {
+  const config = getConfig();
+  saveConfig({
+    ...config,
+    privateCollectionEnabled: !!enabled
+  });
+  return getPrivateCollectionState();
+}
+
+function setPrivateCollectionPassword(password) {
+  const collection = ensurePrivateCollection();
+  const config = getConfig();
+  const trimmed = String(password || '').trim();
+  if (!trimmed) return false;
+  saveConfig({
+    ...config,
+    privateCollectionEnabled: true,
+    privateCollectionId: collection.id,
+    privateCollectionPasswordHash: hashPassword(trimmed)
+  });
+  return true;
+}
+
+function verifyPrivateCollectionPassword(password) {
+  const config = getConfig();
+  const trimmed = String(password || '').trim();
+  if (!trimmed || !config.privateCollectionPasswordHash) return false;
+  return hashPassword(trimmed) === config.privateCollectionPasswordHash;
 }
 
 function renameCollection({ collectionId, name }) {
@@ -225,15 +432,45 @@ function getConfig() {
   const { configPath, dataDir } = ensureStore();
   const data = getData();
   const config = readJson(configPath, {
-    shortcut: 'Ctrl+Shift+N',
+    shortcut: 'Ctrl+Q',
     dataPath: dataDir,
     sortMode: 'updatedAt',
     lastCollectionId: '',
-    theme: 'light'
+    theme: 'light',
+    readClipboardOnQuicknote: false,
+    rememberState: true,
+    autoBackupIntervalDays: 30,
+    lastAutoBackupAt: '',
+    privateCollectionEnabled: false,
+    privateCollectionId: '',
+    privateCollectionPasswordHash: ''
   });
   if (!config.dataPath) config.dataPath = dataDir;
   if (!config.lastCollectionId) {
     config.lastCollectionId = data.collections[0]?.id || '';
+  }
+  if (typeof config.readClipboardOnQuicknote !== 'boolean') {
+    config.readClipboardOnQuicknote = false;
+  }
+  if (typeof config.rememberState !== 'boolean') {
+    config.rememberState = true;
+  }
+  if (!Number.isFinite(Number(config.autoBackupIntervalDays)) || Number(config.autoBackupIntervalDays) < 0) {
+    config.autoBackupIntervalDays = 30;
+  } else {
+    config.autoBackupIntervalDays = Math.floor(Number(config.autoBackupIntervalDays));
+  }
+  if (typeof config.lastAutoBackupAt !== 'string') {
+    config.lastAutoBackupAt = '';
+  }
+  if (typeof config.privateCollectionEnabled !== 'boolean') {
+    config.privateCollectionEnabled = false;
+  }
+  if (typeof config.privateCollectionId !== 'string') {
+    config.privateCollectionId = '';
+  }
+  if (typeof config.privateCollectionPasswordHash !== 'string') {
+    config.privateCollectionPasswordHash = '';
   }
   return config;
 }
@@ -259,9 +496,38 @@ function attachmentsEqual(left = [], right = []) {
   return JSON.stringify(left || []) === JSON.stringify(right || []);
 }
 
+function getCollectionGroupOrders(notes, collectionId, isPinned) {
+  return notes
+    .filter(note => note.collectionId === collectionId && !!note.isPinnedInCollection === !!isPinned)
+    .map(note => Number(note.order))
+    .filter(order => Number.isFinite(order));
+}
+
+function getNextCollectionOrder(notes, collectionId, isPinned) {
+  const groupOrders = getCollectionGroupOrders(notes, collectionId, isPinned);
+  if (!groupOrders.length) return 0;
+  if (isPinned) {
+    return Math.min(...groupOrders) - 1;
+  }
+  return Math.max(...groupOrders) + 1;
+}
+
+function shouldPromoteNormalNoteInCustomSort(isPinned) {
+  if (isPinned) return false;
+  return getConfig().sortMode === 'custom';
+}
+
+function getPreferredCollectionOrder(notes, collectionId, isPinned) {
+  if (shouldPromoteNormalNoteInCustomSort(isPinned)) {
+    return getFrontPinnedStatusOrder(notes, isPinned);
+  }
+  return getNextCollectionOrder(notes, collectionId, isPinned);
+}
+
 function createNote({ collectionId, title, content, attachments = [], tags = [], order }) {
   const data = getData();
   const now = new Date().toISOString();
+  const isPinnedInCollection = false;
   const note = {
     id: crypto.randomUUID(),
     collectionId,
@@ -271,7 +537,8 @@ function createNote({ collectionId, title, content, attachments = [], tags = [],
     tags: normalizeTags(tags),
     createdAt: now,
     updatedAt: now,
-    order: typeof order === 'number' ? order : -Date.now()
+    order: typeof order === 'number' ? order : getPreferredCollectionOrder(data.notes, collectionId, isPinnedInCollection),
+    isPinnedInCollection
   };
   data.notes.push(note);
   saveData(data);
@@ -293,8 +560,10 @@ function appendToNote({ noteId, content, attachments = [] }) {
   const nextContent = `${previousContent}${separator}${incomingContent}`;
   note.content = nextContent;
   note.attachments = nextAttachments;
+  if (shouldPromoteNormalNoteInCustomSort(!!note.isPinnedInCollection)) {
+    note.order = getFrontPinnedStatusOrder(data.notes.filter(item => item.id !== noteId), !!note.isPinnedInCollection);
+  }
   note.updatedAt = new Date().toISOString();
-  note.order = -Date.now();
   saveData(data);
   return note;
 }
@@ -303,9 +572,14 @@ function updateNote({ noteId, patch }) {
   const data = getData();
   const note = data.notes.find(n => n.id === noteId);
   if (!note) return null;
+  const previousCollectionId = note.collectionId;
+  const previousPinned = !!note.isPinnedInCollection;
   const nextPatch = { ...patch };
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'tags')) {
     nextPatch.tags = normalizeTags(nextPatch.tags);
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'isPinnedInCollection')) {
+    nextPatch.isPinnedInCollection = !!nextPatch.isPinnedInCollection;
   }
 
   const hasChanges = Object.entries(nextPatch).some(([key, value]) => {
@@ -323,10 +597,44 @@ function updateNote({ noteId, patch }) {
     saveData(data);
     return note;
   }
+  const nextCollectionId = note.collectionId;
+  const nextPinned = !!note.isPinnedInCollection;
+  if (nextCollectionId !== previousCollectionId || nextPinned !== previousPinned) {
+    note.order = getPreferredCollectionOrder(
+      data.notes.filter(item => item.id !== noteId),
+      nextCollectionId,
+      nextPinned
+    );
+  } else if (shouldPromoteNormalNoteInCustomSort(nextPinned)) {
+    note.order = getFrontPinnedStatusOrder(
+      data.notes.filter(item => item.id !== noteId),
+      nextPinned
+    );
+  }
   note.updatedAt = new Date().toISOString();
-  note.order = -Date.now();
   saveData(data);
   return note;
+}
+
+function updateImageAttachmentRemark(pathValue, remark) {
+  const targetPath = String(pathValue || '').trim();
+  if (!targetPath) return false;
+  const nextRemark = String(remark || '');
+  const data = getData();
+  let hasChanges = false;
+  data.notes.forEach(note => {
+    const attachments = Array.isArray(note.attachments) ? note.attachments : [];
+    attachments.forEach(attachment => {
+      if (attachment?.type !== 'image' || attachment.path !== targetPath) return;
+      if (String(attachment.remark || '') === nextRemark) return;
+      attachment.remark = nextRemark;
+      note.updatedAt = new Date().toISOString();
+      hasChanges = true;
+    });
+  });
+  if (!hasChanges) return false;
+  saveData(data);
+  return true;
 }
 
 function updateOrders(orderList) {
@@ -341,12 +649,44 @@ function updateOrders(orderList) {
   return true;
 }
 
+function updateCollectionOrders(orderList) {
+  const data = getData();
+  orderList.forEach(item => {
+    const collection = data.collections.find(entry => entry.id === item.id);
+    if (collection) {
+      collection.order = item.order;
+    }
+  });
+  saveData(data);
+  return true;
+}
+
 function saveImageBuffer(buffer, extension = 'png') {
   const { assetsDir } = ensureStore();
   const fileName = `img_${crypto.randomUUID()}.${extension}`;
   const filePath = path.join(assetsDir, fileName);
   fs.writeFileSync(filePath, buffer);
   return `assets/${fileName}`;
+}
+
+function saveImageAssetSet({ imageBuffer, thumbnailBuffer, extension = 'png', thumbnailExtension = extension }) {
+  const { assetsDir } = ensureStore();
+  const imageFileName = `img_${crypto.randomUUID()}.${extension}`;
+  const imageFilePath = path.join(assetsDir, imageFileName);
+  fs.writeFileSync(imageFilePath, imageBuffer);
+
+  let thumbnailPath = null;
+  if (thumbnailBuffer) {
+    const thumbFileName = `thumb_${crypto.randomUUID()}.${thumbnailExtension}`;
+    const thumbFilePath = path.join(assetsDir, thumbFileName);
+    fs.writeFileSync(thumbFilePath, thumbnailBuffer);
+    thumbnailPath = `assets/${thumbFileName}`;
+  }
+
+  return {
+    path: `assets/${imageFileName}`,
+    thumbnailPath
+  };
 }
 
 function saveAudioBuffer(buffer, extension = 'webm') {
@@ -359,11 +699,86 @@ function saveAudioBuffer(buffer, extension = 'webm') {
 
 function createBackup() {
   const { dataDir } = ensureStore();
-  const backupRoot = path.join(dataDir, 'backups');
+  const backupRoot = getBackupRoot();
   ensureDir(backupRoot);
-  const backupDir = path.join(backupRoot, `backup_${new Date().toISOString().replace(/[:.]/g, '-')}`);
-  copyDir(dataDir, backupDir);
-  return backupDir;
+  const stagingDir = createTempWorkspace('quicknote-backup');
+  const backupZipPath = path.join(backupRoot, `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.zip`);
+  try {
+    copyDir(dataDir, stagingDir, {
+      shouldSkip(sourcePath) {
+        return sourcePath === backupRoot || sourcePath.startsWith(`${backupRoot}${path.sep}`);
+      }
+    });
+    compressDirectoryToZip(stagingDir, backupZipPath);
+    pruneBackups(30);
+    return backupZipPath;
+  } finally {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+  }
+}
+
+function runScheduledBackupIfNeeded() {
+  const config = getConfig();
+  const intervalDays = Number(config.autoBackupIntervalDays) || 0;
+  if (intervalDays <= 0) return null;
+  const lastBackupAt = Date.parse(config.lastAutoBackupAt || '');
+  const intervalMs = intervalDays * 24 * 60 * 60 * 1000;
+  if (Number.isFinite(lastBackupAt) && (Date.now() - lastBackupAt) < intervalMs) {
+    return null;
+  }
+  const backupPath = createBackup();
+  if (!backupPath) return null;
+  config.lastAutoBackupAt = new Date().toISOString();
+  saveConfig(config);
+  return backupPath;
+}
+
+function importBackup(backupDir) {
+  const sourceInputPath = String(backupDir || '').trim();
+  if (!sourceInputPath) return null;
+  const isZipBackup = fs.existsSync(sourceInputPath)
+    && fs.statSync(sourceInputPath).isFile()
+    && sourceInputPath.toLowerCase().endsWith('.zip');
+  const extractionDir = isZipBackup ? createTempWorkspace('quicknote-import') : null;
+  const sourceDir = isZipBackup ? extractionDir : sourceInputPath;
+
+  try {
+    if (isZipBackup) {
+      extractZipToDirectory(sourceInputPath, extractionDir);
+    }
+
+    const sourceDataPath = path.join(sourceDir, 'data.json');
+    const sourceConfigPath = path.join(sourceDir, 'config.json');
+    const sourceAssetsDir = path.join(sourceDir, 'assets');
+    if (!fs.existsSync(sourceDataPath) || !fs.existsSync(sourceConfigPath)) {
+      return null;
+    }
+
+    const importedData = readJson(sourceDataPath, null);
+    const importedConfig = readJson(sourceConfigPath, null);
+    if (!importedData || !Array.isArray(importedData.collections) || !Array.isArray(importedData.notes) || !importedConfig) {
+      return null;
+    }
+
+    const { dataDir, dataPath, configPath, assetsDir } = ensureStore();
+    writeJson(dataPath, importedData);
+    writeJson(configPath, {
+      ...importedConfig,
+      dataPath: dataDir
+    });
+
+    ensureDir(assetsDir);
+    removeDirContents(assetsDir);
+    if (fs.existsSync(sourceAssetsDir)) {
+      copyDir(sourceAssetsDir, assetsDir);
+    }
+
+    return dataDir;
+  } finally {
+    if (extractionDir) {
+      fs.rmSync(extractionDir, { recursive: true, force: true });
+    }
+  }
 }
 
 function exportNotes(noteIds = []) {
@@ -400,13 +815,27 @@ function resolveAssetPath(relativePath) {
   return path.join(dataDir, relativePath);
 }
 
-function searchNotes({ collectionId, search, sortMode }) {
+function searchNotes({ collectionId, search, sortMode, allowPrivateCollectionAccess = false }) {
   const data = getData();
+  const config = getConfig();
   const term = (search || '').trim().toLowerCase();
+  const privateCollectionId = config.privateCollectionId
+    || data.collections.find(collection => collection.isPrivate)?.id
+    || '';
   let notes = data.notes.slice();
-  if (collectionId && collectionId !== 'all') {
+
+  if (collectionId === privateCollectionId && !allowPrivateCollectionAccess) {
+    notes = [];
+  } else if (collectionId && collectionId !== 'all') {
     notes = notes.filter(n => n.collectionId === collectionId);
+  } else if (privateCollectionId) {
+    notes = notes.filter(n => n.collectionId !== privateCollectionId);
   }
+
+  if (collectionId !== privateCollectionId && privateCollectionId) {
+    notes = notes.filter(n => n.collectionId !== privateCollectionId);
+  }
+
   if (term) {
     notes = notes.filter(n => {
       const title = (n.title || '').toLowerCase();
@@ -418,9 +847,26 @@ function searchNotes({ collectionId, search, sortMode }) {
   if (sortMode === 'title') {
     notes.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
   } else if (sortMode === 'custom') {
-    notes.sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+    notes.sort((a, b) => {
+      const aPinned = !!a.isPinnedInCollection;
+      const bPinned = !!b.isPinnedInCollection;
+      if (aPinned !== bPinned) {
+        return Number(bPinned) - Number(aPinned);
+      }
+      return (a.order ?? 9999) - (b.order ?? 9999);
+    });
   } else {
-    notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    notes.sort((a, b) => {
+      const aPinned = !!a.isPinnedInCollection;
+      const bPinned = !!b.isPinnedInCollection;
+      if (aPinned !== bPinned) {
+        return Number(bPinned) - Number(aPinned);
+      }
+      if (aPinned && bPinned) {
+        return (a.order ?? 9999) - (b.order ?? 9999);
+      }
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
   }
   return { notes, collections: data.collections };
 }
@@ -435,17 +881,27 @@ module.exports = {
   createNote,
   appendToNote,
   updateNote,
+  updateImageAttachmentRemark,
   saveImageBuffer,
+  saveImageAssetSet,
   saveAudioBuffer,
   resolveAssetPath,
   searchNotes,
   stripHtml,
   updateOrders,
+  updateCollectionOrders,
   createCollection,
   renameCollection,
+  ensurePrivateCollection,
+  getPrivateCollectionState,
+  setPrivateCollectionEnabled,
+  setPrivateCollectionPassword,
+  verifyPrivateCollectionPassword,
   deleteCollection,
   deleteNotes,
   createBackup,
+  runScheduledBackupIfNeeded,
+  importBackup,
   moveNotes,
   exportNotes
 };

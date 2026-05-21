@@ -17,9 +17,14 @@
       <div class="viewer-stage">
         <button id="prevImageBtn" class="viewer-nav viewer-nav-left no-drag" aria-label="Previous">&#8249;</button>
         <div class="viewer-canvas">
-          <img id="viewerImage" class="viewer-image" alt="Preview image" />
+          <div id="viewerPanSurface" class="viewer-pan-surface">
+            <img id="viewerImage" class="viewer-image" alt="Preview image" />
+          </div>
         </div>
         <button id="nextImageBtn" class="viewer-nav viewer-nav-right no-drag" aria-label="Next">&#8250;</button>
+      </div>
+      <div class="viewer-note-wrap no-drag">
+        <textarea id="viewerRemarkInput" class="viewer-remark-input" placeholder="给这张图片写一点备注..."></textarea>
       </div>
     </div>
     <script src="./js/image-viewer.js"></script>

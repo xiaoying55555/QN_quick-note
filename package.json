@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "quicknote",
   "version": "0.1.0",
   "description": "QuickNote Windows desktop app",
@@ -17,15 +17,27 @@
   "build": {
     "appId": "com.quicknote.app",
     "productName": "QUICKnote",
+    "compression": "maximum",
+    "asar": true,
+    "electronLanguages": [
+      "en-US",
+      "zh-CN"
+    ],
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "src/**/*",
       "package.json"
     ],
     "win": {
-      "target": "dir"
+      "target": "nsis",
+      "icon": "build/app-icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

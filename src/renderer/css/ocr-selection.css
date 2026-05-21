@@ -1,0 +1,42 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.selection-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.selection-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 24, 14, 0.18);
+}
+
+.selection-box {
+  position: absolute;
+  border: 1px solid rgba(168, 201, 64, 0.95);
+  box-shadow: 0 0 0 9999px rgba(20, 24, 14, 0.36);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.selection-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(18, 18, 18, 0.72);
+  color: #f4f7eb;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}

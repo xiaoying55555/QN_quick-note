@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OCR Selection</title>
+    <link rel="stylesheet" href="./css/ocr-selection.css" />
+  </head>
+  <body>
+    <div id="selectionRoot" class="selection-root">
+      <div id="selectionMask" class="selection-mask"></div>
+      <div id="selectionBox" class="selection-box" hidden></div>
+      <div class="selection-tip">拖动框选识别区域，Esc 取消</div>
+    </div>
+    <script src="./js/ocr-selection.js"></script>
+  </body>
+</html>

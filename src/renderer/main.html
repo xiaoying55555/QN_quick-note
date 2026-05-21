@@ -9,21 +9,36 @@
     <link rel="stylesheet" href="./css/main.css" />
   </head>
   <body>
+    <div class="main-edge-zone main-edge-top" data-expand-edge="top"></div>
+    <div class="main-edge-zone main-edge-right" data-expand-edge="right"></div>
+    <div class="main-edge-zone main-edge-bottom" data-expand-edge="bottom"></div>
+    <div class="main-edge-zone main-edge-left" data-expand-edge="left"></div>
     <div class="main-shell">
       <aside class="sidebar">
-        <div class="logo">QUICKnote</div>
-        <div id="collectionList" class="collection-list">
-          <div class="collection-item active">
-            <span>全部笔记</span>
-            <span class="collection-dot"></span>
-          </div>
+        <div class="logo">
+          <img src="./assets/icons/quicknote-logo.svg" alt="QUICKnote" class="logo-image" />
         </div>
-        <div id="collectionInputWrap" class="collection-input-wrap"></div>
+        <div class="sidebar-collections">
+          <div id="collectionScroll" class="collection-scroll scrollbar-hidden">
+            <div id="collectionList" class="collection-list">
+              <div class="collection-item active">
+                <span class="collection-label">全部笔记</span>
+                <span class="collection-dot"></span>
+              </div>
+            </div>
+            <div id="collectionInputWrap" class="collection-input-wrap"></div>
+          </div>
+          <img id="addCollectionBtn" class="add-collection-btn no-drag" src="./assets/icons/新增收藏夹.svg" alt="添加收藏夹" />
+        </div>
         <div id="collectionContextMenu" class="collection-context-menu hidden">
           <button id="renameCollectionBtn" class="collection-context-item">重命名</button>
           <button id="deleteCollectionBtn" class="collection-context-item danger">删除</button>
         </div>
-        <img id="addCollectionBtn" class="add-collection-btn no-drag" src="./assets/icons/新增收藏夹.svg" alt="添加收藏夹" />
+        <div id="noteContextMenu" class="collection-context-menu hidden">
+          <button id="pinNoteCardBtn" class="collection-context-item">置顶</button>
+          <button id="exportNoteImageBtn" class="collection-context-item">导出图片</button>
+          <button id="deleteNoteCardBtn" class="collection-context-item danger">删除</button>
+        </div>
         <div class="sidebar-footer">
           <button id="openSettings" class="icon-btn no-drag" aria-label="设置">
             <img src="./assets/icons/设置.svg" alt="" />
@@ -34,7 +49,9 @@
         <header class="topbar drag-region">
           <div class="search no-drag">
             <div class="search-pill">
-              <span class="search-icon">🔍</span>
+              <span class="search-icon" aria-hidden="true">
+                <img src="./assets/icons/search.svg" alt="" />
+              </span>
               <input id="searchInput" type="text" placeholder="搜索" />
             </div>
           </div>
@@ -64,13 +81,40 @@
               </div>
             </div>
           </div>
+          <div id="privateCollectionGate" class="private-collection-gate hidden">
+            <div class="private-collection-dialog">
+              <div class="private-collection-title" id="privateCollectionTitle">进入隐私收藏夹</div>
+              <div class="private-collection-copy" id="privateCollectionCopy">请输入密码后查看隐私收藏夹内容。</div>
+              <div class="private-collection-form">
+                <label class="private-collection-field">
+                  <span id="privatePasswordLabel">密码</span>
+                  <div class="private-password-row">
+                    <input id="privatePasswordInput" class="private-password-input" type="password" placeholder="请输入密码" />
+                    <button id="privatePasswordToggle" class="private-password-toggle" type="button" aria-label="显示或隐藏密码">
+                      <img id="privatePasswordToggleIcon" src="./assets/icons/eye-closed.png" alt="" />
+                    </button>
+                  </div>
+                </label>
+                <label id="privatePasswordConfirmField" class="private-collection-field hidden">
+                  <span>重复密码</span>
+                  <input id="privatePasswordConfirmInput" class="private-password-input" type="password" placeholder="请再次输入密码" />
+                </label>
+              </div>
+              <div class="private-collection-actions">
+                <button id="privateCollectionSubmit" class="settings-btn accent" type="button">确认</button>
+              </div>
+              <div id="privateCollectionStatus" class="private-collection-status"></div>
+            </div>
+          </div>
         <div id="selectionBar" class="selection-bar hidden">
           <span id="selectionCount">已选择 0 条</span>
           <div class="selection-actions">
+            <button id="selectAllBtn" class="selection-btn secondary">全选</button>
             <select id="moveCollectionSelect" class="selection-select"></select>
-            <button id="moveSelectionBtn" class="selection-btn secondary">移动</button>
-              <button id="exportSelectionBtn" class="selection-btn secondary">导出</button>
-              <button id="cancelSelectionBtn" class="selection-btn secondary">取消</button>
+            <button id="moveSelectionBtn" class="selection-btn accent">移动</button>
+            <button id="mergeSelectionBtn" class="selection-btn secondary">合并</button>
+            <button id="exportSelectionBtn" class="selection-btn secondary">导出</button>
+            <button id="cancelSelectionBtn" class="selection-btn secondary">取消</button>
             <button id="deleteSelectionBtn" class="selection-btn danger">删除</button>
           </div>
         </div>
@@ -106,25 +150,34 @@
               <div class="settings-help">保存后会立即重新注册全局快捷键。</div>
             </section>
             <section class="settings-card">
-              <div class="settings-card-title">存储与备份</div>
-              <div class="settings-label">存储路径</div>
-              <div id="dataPathValue" class="settings-value"></div>
-              <div class="settings-row wrap">
-                <button id="openDataFolderBtn" class="settings-btn">打开文件夹</button>
-                <button id="exportAllBtn" class="settings-btn">导出全部笔记</button>
-                <button id="backupDataBtn" class="settings-btn">创建备份</button>
-              </div>
-            </section>
-            <section class="settings-card">
               <div class="settings-card-title">其他项目</div>
-              <label class="settings-toggle">
-                <input id="themeToggle" type="checkbox" />
-                使用柔和背景
-              </label>
               <label class="settings-toggle">
                 <input id="rememberModeToggle" type="checkbox" />
                 记住上次排序与收藏夹
               </label>
+              <label class="settings-toggle">
+                <input id="clipboardToggle" type="checkbox" />
+                快捷呼出时读取剪贴板
+              </label>
+              <div class="settings-row">
+                <button id="openPrivateCollectionBtn" class="settings-btn">打开隐藏收藏夹</button>
+              </div>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-title">存储与备份</div>
+              <div class="settings-label">存储路径</div>
+              <div id="dataPathValue" class="settings-value"></div>
+              <div class="settings-label">自动备份间隔（天）</div>
+              <div class="settings-row">
+                <input id="backupIntervalInput" class="settings-input" type="number" min="0" step="1" placeholder="30" />
+                <button id="saveBackupIntervalBtn" class="settings-btn accent">保存周期</button>
+              </div>
+              <div class="settings-help">填写 0 可关闭自动备份；应用启动时会检查是否到期。</div>
+              <div class="settings-row wrap">
+                <button id="openDataFolderBtn" class="settings-btn">打开文件夹</button>
+                <button id="backupDataBtn" class="settings-btn">创建备份</button>
+                <button id="importBackupBtn" class="settings-btn">导入备份</button>
+              </div>
               <div class="settings-help">“导出”会生成可阅读的 Markdown 文件，适合留档与分享。</div>
             </section>
           </div>
