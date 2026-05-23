@@ -165,6 +165,9 @@ function ensureStore() {
       rememberState: true,
       autoBackupIntervalDays: 30,
       lastAutoBackupAt: '',
+      flashcardEnabled: true,
+      flashcardCollectionIds: [],
+      flashcardConfigured: false,
       privateCollectionEnabled: false,
       privateCollectionId: '',
       privateCollectionPasswordHash: ''
@@ -206,6 +209,9 @@ function ensureStore() {
         rememberState: true,
         autoBackupIntervalDays: 30,
         lastAutoBackupAt: '',
+        flashcardEnabled: true,
+        flashcardCollectionIds: [],
+        flashcardConfigured: false,
         privateCollectionEnabled: false,
         privateCollectionId: '',
         privateCollectionPasswordHash: ''
@@ -441,6 +447,9 @@ function getConfig() {
     rememberState: true,
     autoBackupIntervalDays: 30,
     lastAutoBackupAt: '',
+    flashcardEnabled: true,
+    flashcardCollectionIds: [],
+    flashcardConfigured: false,
     privateCollectionEnabled: false,
     privateCollectionId: '',
     privateCollectionPasswordHash: ''
@@ -462,6 +471,20 @@ function getConfig() {
   }
   if (typeof config.lastAutoBackupAt !== 'string') {
     config.lastAutoBackupAt = '';
+  }
+  if (typeof config.flashcardEnabled !== 'boolean') {
+    config.flashcardEnabled = true;
+  }
+  if (!Array.isArray(config.flashcardCollectionIds)) {
+    config.flashcardCollectionIds = [];
+  } else {
+    const collectionIds = new Set(data.collections.map(collection => collection.id));
+    config.flashcardCollectionIds = config.flashcardCollectionIds
+      .map(value => String(value || '').trim())
+      .filter(id => id && collectionIds.has(id));
+  }
+  if (typeof config.flashcardConfigured !== 'boolean') {
+    config.flashcardConfigured = false;
   }
   if (typeof config.privateCollectionEnabled !== 'boolean') {
     config.privateCollectionEnabled = false;

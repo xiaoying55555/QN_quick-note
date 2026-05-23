@@ -14,6 +14,7 @@ let tray;
 let imageViewerWindow;
 let ocrSelectionWindow;
 const noteWindows = new Map();
+let activeFlashcardWindowKey = '';
 let noteFloatingResetTimer = null;
 let mainWindowLayoutRefreshTimer = null;
 
@@ -22,7 +23,8 @@ const QUICKNOTE_HEIGHT = 391;
 const OCR_SHORTCUT = 'Alt+Shift+S';
 const MAIN_WINDOW_WIDTH = 1061;
 const MAIN_WINDOW_HEIGHT = 629;
-const NOTE_EXPORT_WIDTH = 760;
+const NOTE_EXPORT_MAX_WIDTH = 760;
+const NOTE_EXPORT_MIN_WIDTH = 420;
 const MAIN_WINDOW_MARGIN = 24;
 const IMAGE_VIEWER_DEFAULT_WIDTH = 860;
 const IMAGE_VIEWER_DEFAULT_HEIGHT = 700;
@@ -117,6 +119,7 @@ async function exportNoteAsImage(note, targetPath) {
       return `file:///${resolvedPath}`;
     });
   const audioAttachments = (note.attachments || []).filter(att => att.type === 'audio');
+  const hasImageAttachments = imageAttachments.length > 0;
   const tags = (note.tags || []).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
   const imageMarkup = imageAttachments.map(url => `<img class="attachment-image" src="${url}" alt="" />`).join('');
   const audioMarkup = audioAttachments.map(att => (
@@ -128,9 +131,17 @@ async function exportNoteAsImage(note, targetPath) {
       <meta charset="UTF-8" />
       <style>
         * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; background: #fafaf8; font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif; color: #243011; }
-        body { width: ${NOTE_EXPORT_WIDTH}px; }
-        .page { width: ${NOTE_EXPORT_WIDTH}px; padding: 32px 32px 28px; background: #ffffff; }
+        html, body { margin: 0; padding: 0; background: #ffffff; font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif; color: #243011; }
+        body { display: inline-block; width: fit-content; min-width: 0; }
+        .page {
+          display: inline-block;
+          width: fit-content;
+          min-width: ${NOTE_EXPORT_MIN_WIDTH}px;
+          max-width: ${NOTE_EXPORT_MAX_WIDTH}px;
+          padding: 32px 32px 28px;
+          background: #ffffff;
+        }
+        .page.has-images { width: ${NOTE_EXPORT_MAX_WIDTH}px; }
         .title { font-size: 28px; line-height: 1.35; font-weight: 700; margin: 0; }
         .meta { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
         .tag { display: inline-flex; align-items: center; min-height: 28px; padding: 0 12px; border-radius: 999px; background: #f0f5df; color: #59711d; font-size: 14px; }
@@ -141,7 +152,7 @@ async function exportNoteAsImage(note, targetPath) {
       </style>
     </head>
     <body>
-      <div class="page">
+      <div class="page ${hasImageAttachments ? 'has-images' : ''}">
         <h1 class="title">${escapeHtml(note.title || '未命名')}</h1>
         ${tags ? `<div class="meta">${tags}</div>` : ''}
         <div class="content">${noteContentToExportHtml(note.content || '（无正文）')}</div>
@@ -151,7 +162,7 @@ async function exportNoteAsImage(note, targetPath) {
   </html>`;
 
   const exportWindow = new BrowserWindow({
-    width: NOTE_EXPORT_WIDTH,
+    width: NOTE_EXPORT_MAX_WIDTH,
     height: 900,
     show: false,
     frame: false,
@@ -188,10 +199,23 @@ async function exportNoteAsImage(note, targetPath) {
         });
       });
     `);
-    const pageHeight = await exportWindow.webContents.executeJavaScript(`
-      Math.ceil(document.documentElement.scrollHeight || document.body.scrollHeight || 900)
+    const pageMetrics = await exportWindow.webContents.executeJavaScript(`
+      (() => {
+        const page = document.querySelector('.page');
+        if (!page) {
+          return { width: ${NOTE_EXPORT_MAX_WIDTH}, height: 900 };
+        }
+        const rect = page.getBoundingClientRect();
+        return {
+          width: Math.ceil(rect.width),
+          height: Math.ceil(rect.height)
+        };
+      })()
     `);
-    exportWindow.setContentSize(NOTE_EXPORT_WIDTH, Math.max(320, pageHeight));
+    exportWindow.setContentSize(
+      Math.max(NOTE_EXPORT_MIN_WIDTH, Math.min(NOTE_EXPORT_MAX_WIDTH, pageMetrics.width)),
+      Math.max(320, pageMetrics.height)
+    );
     await new Promise(resolve => setTimeout(resolve, 80));
     const image = await exportWindow.webContents.capturePage();
     fs.writeFileSync(targetPath, image.toPNG());
@@ -337,6 +361,12 @@ function normalizeNotePayload(payload) {
 }
 
 function getNoteWindowKey(payload) {
+  if (payload?.windowRole === 'flashcard') {
+    if (payload.noteId) {
+      return `flashcard:note:${payload.noteId}`;
+    }
+    return `flashcard:draft:${payload.draftKey}`;
+  }
   if (payload.noteId) {
     return `note:${payload.noteId}`;
   }
@@ -347,6 +377,7 @@ function sendNotePayload(windowRef, payload) {
   if (!windowRef || windowRef.isDestroyed()) return;
   windowRef.__notePayload = payload;
   windowRef.__noteId = payload.noteId || null;
+  windowRef.__windowRole = payload?.windowRole || 'default';
   if (windowRef.webContents.isLoading()) return;
   windowRef.webContents.send('note:open', payload);
 }
@@ -382,6 +413,7 @@ function createNoteWindow(windowKey, payload) {
   noteWindow.__noteKey = windowKey;
   noteWindow.__notePayload = payload;
   noteWindow.__noteId = payload.noteId || null;
+  noteWindow.__windowRole = payload?.windowRole || 'default';
   noteWindow.__isPinned = false;
   noteWindow.loadFile(path.join(__dirname, '../renderer/note.html'));
 
@@ -392,6 +424,9 @@ function createNoteWindow(windowKey, payload) {
   });
 
   noteWindow.on('closed', () => {
+    if (activeFlashcardWindowKey === windowKey) {
+      activeFlashcardWindowKey = '';
+    }
     noteWindows.delete(windowKey);
   });
 
@@ -428,6 +463,16 @@ async function focusNoteWindow(windowRef, payload) {
   if (typeof windowRef.moveTop === 'function') {
     windowRef.moveTop();
   }
+}
+
+function closeFlashcardWindowIfNeeded(excludedKey = '') {
+  if (!activeFlashcardWindowKey || activeFlashcardWindowKey === excludedKey) return false;
+  const activeWindow = noteWindows.get(activeFlashcardWindowKey);
+  activeFlashcardWindowKey = '';
+  if (!activeWindow || activeWindow.isDestroyed()) return false;
+  noteWindows.delete(activeWindow.__noteKey);
+  activeWindow.destroy();
+  return true;
 }
 
 function focusTopRemainingNote(excludedWindow) {
@@ -909,20 +954,43 @@ ipcMain.handle('app:show-note', (_event, payload) => {
   return focusNoteWindow(noteWindow, nextPayload).then(() => true);
 });
 
+ipcMain.handle('app:show-flashcard-note', (_event, payload) => {
+  const nextPayload = normalizeNotePayload({
+    ...(typeof payload === 'string' ? { noteId: payload } : payload),
+    windowRole: 'flashcard'
+  });
+  const windowKey = getNoteWindowKey(nextPayload);
+  closeFlashcardWindowIfNeeded(windowKey);
+  const existingWindow = noteWindows.get(windowKey);
+  if (existingWindow && !existingWindow.isDestroyed()) {
+    activeFlashcardWindowKey = windowKey;
+    return focusNoteWindow(existingWindow, nextPayload).then(() => true);
+  }
+
+  const noteWindow = createNoteWindow(windowKey, nextPayload);
+  activeFlashcardWindowKey = windowKey;
+  return focusNoteWindow(noteWindow, nextPayload).then(() => true);
+});
+
 ipcMain.handle('app:update-note-window-context', (event, payload) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   if (!senderWindow) return false;
   const nextNoteId = payload?.noteId;
   if (!nextNoteId) return false;
-  const nextKey = `note:${nextNoteId}`;
+  const windowRole = payload?.windowRole || senderWindow.__windowRole || 'default';
+  const nextKey = windowRole === 'flashcard' ? `flashcard:note:${nextNoteId}` : `note:${nextNoteId}`;
   const previousKey = senderWindow.__noteKey;
   if (previousKey && previousKey !== nextKey) {
     noteWindows.delete(previousKey);
   }
   senderWindow.__noteKey = nextKey;
   senderWindow.__noteId = nextNoteId;
-  senderWindow.__notePayload = { noteId: nextNoteId, mode: payload?.mode || 'edit' };
+  senderWindow.__windowRole = windowRole;
+  senderWindow.__notePayload = { noteId: nextNoteId, mode: payload?.mode || 'edit', windowRole };
   noteWindows.set(nextKey, senderWindow);
+  if (windowRole === 'flashcard') {
+    activeFlashcardWindowKey = nextKey;
+  }
   return true;
 });
 
@@ -933,6 +1001,9 @@ ipcMain.handle('app:hide-quicknote', () => {
 ipcMain.handle('app:hide-note', event => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   if (!senderWindow) return false;
+  if (activeFlashcardWindowKey === senderWindow.__noteKey) {
+    activeFlashcardWindowKey = '';
+  }
   noteWindows.delete(senderWindow.__noteKey);
   senderWindow.destroy();
   setTimeout(() => {

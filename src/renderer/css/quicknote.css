@@ -17,7 +17,7 @@ body {
   height: 100%;
   margin-top: auto;
   background: rgba(255, 255, 255, 1);
-  border-radius: var(--radius);
+  border-radius: calc(var(--radius) + 9px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 6px 14px rgba(29, 35, 18, 0.1), 0 2px 5px rgba(29, 35, 18, 0.06);
   backdrop-filter: blur(36px) saturate(170%);

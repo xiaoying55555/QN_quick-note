@@ -62,8 +62,9 @@ function stripHtml(input) {
 function htmlToPlainText(input) {
   return String(input || '')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(div|p)>/gi, '\n')
-    .replace(/<(div|p)(\s[^>]*)?>/gi, '')
+    .replace(/<\/(div|p|li|blockquote|tr)>/gi, '\n')
+    .replace(/<(div|p|li|blockquote|tr)(\s[^>]*)?>/gi, '')
+    .replace(/<\/?(ol|ul|table|tbody|thead)(\s[^>]*)?>/gi, '')
     .replace(/&nbsp;/gi, ' ')
     .replace(/<[^>]*>/g, '');
 }
@@ -108,12 +109,12 @@ function normalizeStoredContentHtml(input) {
 function serializeEditorHtml(editor) {
   return String(editor?.innerHTML || '')
     .replace(/<div><br><\/div>/gi, '<br>')
-    .replace(/<\/div>\s*<div>/gi, '<br>')
-    .replace(/<\/p>\s*<p>/gi, '<br>')
-    .replace(/<(div|p)(\s[^>]*)?>/gi, '')
-    .replace(/<\/(div|p)>/gi, '')
+    .replace(/<\/?(ol|ul|table|tbody|thead)(\s[^>]*)?>/gi, '')
+    .replace(/<(div|p|li|blockquote|tr)(\s[^>]*)?>/gi, '<br>')
+    .replace(/<\/(div|p|li|blockquote|tr)>/gi, '')
     .replace(/\r?\n/g, '<br>')
     .replace(/(<br>\s*){3,}/gi, '<br><br>')
+    .replace(/^(<br>\s*)+|(<br>\s*)+$/gi, '')
     .trim();
 }
 
@@ -999,8 +1000,9 @@ function getPayloadKey(payload) {
   const mode = typeof payload === 'string' ? 'read' : payload.mode || 'read';
   const draftKey = typeof payload === 'object' && payload?.draftKey ? payload.draftKey : '';
   const collectionId = typeof payload === 'object' && payload?.collectionId ? payload.collectionId : '';
+  const windowRole = typeof payload === 'object' && payload?.windowRole ? payload.windowRole : 'default';
   const draft = typeof payload === 'object' && payload?.draft ? 'draft' : 'saved';
-  return [noteId, mode, draftKey, collectionId, draft].join('|');
+  return [noteId, mode, draftKey, collectionId, draft, windowRole].join('|');
 }
 
 function preloadImage(url) {
@@ -1170,6 +1172,7 @@ async function loadNote(payload) {
   const noteId = typeof payload === 'string' ? payload : payload?.noteId;
   const mode = typeof payload === 'string' ? 'read' : payload?.mode || 'read';
   const draft = typeof payload === 'string' ? false : !!payload?.draft;
+  const windowRole = typeof payload === 'object' && payload?.windowRole ? payload.windowRole : 'default';
   const data = await api.invoke('data:get');
   const collections = data.collections || [];
 
@@ -1217,7 +1220,7 @@ async function loadNote(payload) {
   originalSnapshot = getCurrentSnapshot();
   initializeEditorHistory();
   rememberEditorSelection();
-  await api.invoke('app:update-note-window-context', { noteId: currentNoteId });
+  await api.invoke('app:update-note-window-context', { noteId: currentNoteId, windowRole });
   await waitForMinimumLoading(loadingStartedAt, 45);
   await flushRenderFrames(1);
   if (openToken !== noteOpenToken) return;
@@ -1254,8 +1257,8 @@ async function saveCurrentNote() {
     });
     isDraft = false;
     currentNoteId = created.id;
-    await api.invoke('app:update-note-window-context', { noteId: created.id });
-    await loadNote({ noteId: created.id, mode: 'edit' });
+    await api.invoke('app:update-note-window-context', { noteId: created.id, windowRole });
+    await loadNote({ noteId: created.id, mode: 'edit', windowRole });
     return created;
   }
 
@@ -1547,7 +1550,14 @@ api.on('note:open', payload => {
 
 api.on('data:updated', () => {
   if (currentNoteId && !isDraft && !hasUnsavedChanges()) {
-    loadNote({ noteId: currentNoteId, mode: currentReadOnly ? 'read' : 'edit' });
+    api.invoke('app:get-note-window-payload')
+      .then(payload => {
+        const windowRole = payload?.windowRole || 'default';
+        loadNote({ noteId: currentNoteId, mode: currentReadOnly ? 'read' : 'edit', windowRole });
+      })
+      .catch(() => {
+        loadNote({ noteId: currentNoteId, mode: currentReadOnly ? 'read' : 'edit' });
+      });
   }
 });
 

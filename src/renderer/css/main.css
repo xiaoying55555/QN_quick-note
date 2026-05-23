@@ -40,6 +40,11 @@
   --planner-calendar-card-icon-size: 22px;
   --planner-calendar-card-icon-opacity: 0.72;
   --planner-calendar-card-grid-width: calc((var(--planner-calendar-card-cell-size) * 7) + (var(--planner-calendar-card-cell-gap-x) * 6));
+  --flashcard-btn-size: 30px;
+  --flashcard-btn-icon-size: 28px;
+  --flashcard-btn-offset-x: 33.5px;
+  --flashcard-btn-offset-y: 0px;
+  --flashcard-tooltip-offset-y: 16px;
 }
 
 body {
@@ -317,6 +322,7 @@ body.settings-open .main-edge-zone {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: 0;
   margin-top: auto;
   padding-top: 40px;
   flex: 0 0 auto;
@@ -326,6 +332,36 @@ body.settings-open .main-edge-zone {
 
 #openSettings {
   margin-left: 1px;
+}
+
+.flashcard-btn.hidden {
+  display: none;
+}
+
+#openFlashcard {
+  width: var(--flashcard-btn-size);
+  height: var(--flashcard-btn-size);
+  margin-left: var(--flashcard-btn-offset-x);
+  transform: translateY(var(--flashcard-btn-offset-y));
+  transform-origin: center;
+}
+
+#openFlashcard.is-bouncing {
+  animation: flashcard-btn-bounce 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#openFlashcard img {
+  width: var(--flashcard-btn-icon-size);
+  height: var(--flashcard-btn-icon-size);
+  display: block;
+  object-fit: contain;
+}
+
+@keyframes flashcard-btn-bounce {
+  0% { transform: translateY(var(--flashcard-btn-offset-y)) scale(1); }
+  34% { transform: translateY(var(--flashcard-btn-offset-y)) scale(0.92); }
+  68% { transform: translateY(var(--flashcard-btn-offset-y)) scale(1.08); }
+  100% { transform: translateY(var(--flashcard-btn-offset-y)) scale(1); }
 }
 
 .main-area {
@@ -704,6 +740,7 @@ body.settings-open .main-edge-zone {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 36px;
+  white-space: pre-line;
 }
 
 .note-thumb {
@@ -1040,6 +1077,28 @@ body.settings-open .main-edge-zone {
   display: none;
 }
 
+.flashcard-hover-tooltip {
+  position: fixed;
+  transform: translate(-50%, 0);
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(43, 49, 24, 0.92);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 80;
+  white-space: nowrap;
+}
+
+.flashcard-hover-tooltip.hidden {
+  display: none;
+}
+
 .highlight {
   background: rgba(168, 201, 64, 0.35);
   border-radius: 4px;
@@ -1214,6 +1273,7 @@ body.settings-open .main-edge-zone {
   justify-content: center;
   flex: 0 0 auto;
   position: relative;
+  top: 15px;
   z-index: 4;
   pointer-events: auto;
 }
@@ -1296,6 +1356,49 @@ body.settings-open .main-edge-zone {
   gap: 8px;
   font-size: 12px;
   color: #55602b;
+}
+
+.flashcard-collection-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 2px;
+  max-height: 86px;
+  overflow-y: auto;
+}
+
+.flashcard-collection-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(33.333% - 7px);
+  min-width: 86px;
+  font-size: 12px;
+  color: #55602b;
+}
+
+.flashcard-collection-option input {
+  flex: 0 0 auto;
+  accent-color: #a2c921;
+}
+
+.flashcard-collection-option-label {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flashcard-collection-empty {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8b8f7b;
+}
+
+.settings-card-flashcard {
+  min-height: 148px;
+  gap: 8px;
 }
 
 .private-collection-gate {

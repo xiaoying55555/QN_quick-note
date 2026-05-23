@@ -60,6 +60,7 @@ const sortMenu = document.getElementById('sortMenu');
 const selectBtn = document.getElementById('selectBtn');
 const minimizeBtn = document.getElementById('minimizeBtn');
 const openSettings = document.getElementById('openSettings');
+const openFlashcard = document.getElementById('openFlashcard');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const notesScroll = document.getElementById('notesScroll');
 const scrollIndicator = document.getElementById('scrollIndicator');
@@ -97,6 +98,8 @@ const shortcutInput = document.getElementById('shortcutInput');
 const saveShortcutBtn = document.getElementById('saveShortcutBtn');
 const rememberModeToggle = document.getElementById('rememberModeToggle');
 const clipboardToggle = document.getElementById('clipboardToggle');
+const flashcardEnabledToggle = document.getElementById('flashcardEnabledToggle');
+const flashcardCollectionList = document.getElementById('flashcardCollectionList');
 const openPrivateCollectionBtn = document.getElementById('openPrivateCollectionBtn');
 const settingsStatus = document.getElementById('settingsStatus');
 const buildStamp = document.getElementById('buildStamp');
@@ -147,6 +150,11 @@ const calendarTodayLabelTimers = new Map();
 let activeCalendarDateKey = '';
 const calendarCardMonthPickerYearState = new Map();
 let activeCalendarMonthPickerCollectionId = '';
+let lastFlashcardNoteId = '';
+const flashcardHoverTooltip = document.createElement('div');
+flashcardHoverTooltip.className = 'flashcard-hover-tooltip hidden';
+flashcardHoverTooltip.textContent = '闪卡';
+document.body.appendChild(flashcardHoverTooltip);
 
 function setBuildStamp(message, isError = false) {
   if (!buildStamp) return;
@@ -233,9 +241,12 @@ async function loadConfig() {
       lastCollectionId: 'all',
       theme: 'light',
       rememberState: true,
-    readClipboardOnQuicknote: false,
-    dataPath: '',
-    autoBackupIntervalDays: 30
+      readClipboardOnQuicknote: false,
+      dataPath: '',
+      autoBackupIntervalDays: 30,
+      flashcardEnabled: true,
+      flashcardCollectionIds: [],
+      flashcardConfigured: false
     };
   }
   await loadPrivateCollectionState();
@@ -275,6 +286,7 @@ async function loadData() {
     collections = [];
     notes = [];
   }
+  await ensureFlashcardDefaults();
   updatePrivateCollectionGate();
   if (sortMode === 'custom' && !selectionMode) {
     await ensureCustomOrder();
@@ -282,6 +294,8 @@ async function loadData() {
   renderCollections();
   renderNotes();
   hydrateMoveCollectionSelect();
+  renderFlashcardCollectionList();
+  updateFlashcardButtonVisibility();
   requestAnimationFrame(updateCollectionOverflowState);
 }
 
@@ -657,6 +671,127 @@ function getTodayKey() {
   return `${today.getFullYear()}-${padNumber(today.getMonth() + 1)}-${padNumber(today.getDate())}`;
 }
 
+function getFlashcardEligibleCollections() {
+  const selectedIds = new Set((configCache?.flashcardCollectionIds || []).map(id => String(id || '')));
+  return collections.filter(collection => (
+    collection.id
+    && !collection.isPrivate
+    && collection.id !== privateCollectionId
+    && selectedIds.has(collection.id)
+  ));
+}
+
+function getAvailableFlashcardCollections() {
+  return collections.filter(collection => !collection.isPrivate && collection.id !== privateCollectionId);
+}
+
+function getFlashcardDefaultCollectionIds() {
+  return getAvailableFlashcardCollections().map(collection => collection.id);
+}
+
+function truncateFlashcardCollectionName(name) {
+  const text = String(name || '').trim();
+  if (text.length <= 3) return text;
+  return `${text.slice(0, 3)}...`;
+}
+
+async function ensureFlashcardDefaults() {
+  if (!configCache || configCache.flashcardConfigured === true) return;
+  const defaultCollectionIds = getFlashcardDefaultCollectionIds();
+  await saveConfig({
+    flashcardEnabled: true,
+    flashcardCollectionIds: configCache.flashcardCollectionIds?.length
+      ? configCache.flashcardCollectionIds.filter(id => defaultCollectionIds.includes(id))
+      : defaultCollectionIds,
+    flashcardConfigured: true
+  });
+}
+
+async function getFlashcardEligibleNotes() {
+  const eligibleCollectionIds = new Set(getFlashcardEligibleCollections().map(collection => collection.id));
+  if (!eligibleCollectionIds.size) return [];
+  const data = await api.invoke('data:get');
+  const allNotes = data?.notes || [];
+  return allNotes.filter(note => eligibleCollectionIds.has(note.collectionId));
+}
+
+function updateFlashcardButtonVisibility() {
+  if (!openFlashcard) return;
+  const shouldShow = configCache?.flashcardEnabled === true;
+  openFlashcard.classList.toggle('hidden', !shouldShow);
+  if (!shouldShow) {
+    flashcardHoverTooltip.classList.add('hidden');
+  }
+}
+
+function getFlashcardTooltipOffsetY() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--flashcard-tooltip-offset-y');
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : 16;
+}
+
+function renderFlashcardCollectionList() {
+  if (!flashcardCollectionList) return;
+  flashcardCollectionList.innerHTML = '';
+  const availableCollections = getAvailableFlashcardCollections();
+  if (!availableCollections.length) {
+    const empty = document.createElement('div');
+    empty.className = 'flashcard-collection-empty';
+    empty.textContent = '暂无可参与闪卡的收藏夹';
+    flashcardCollectionList.appendChild(empty);
+    return;
+  }
+
+  const selectedIds = new Set((configCache?.flashcardCollectionIds || []).map(id => String(id || '')));
+  availableCollections.forEach(collection => {
+    const label = document.createElement('label');
+    label.className = 'flashcard-collection-option';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = collection.id;
+    input.checked = selectedIds.has(collection.id);
+    input.addEventListener('change', async () => {
+      const nextSelectedIds = Array.from(flashcardCollectionList.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(node => node.value)
+        .filter(Boolean);
+      await saveConfig({ flashcardCollectionIds: nextSelectedIds, flashcardConfigured: true });
+      updateFlashcardButtonVisibility();
+      setSettingsStatus('闪卡收藏夹范围已更新');
+    });
+    const text = document.createElement('span');
+    text.className = 'flashcard-collection-option-label';
+    text.textContent = truncateFlashcardCollectionName(collection.name);
+    text.title = collection.name;
+    label.appendChild(input);
+    label.appendChild(text);
+    flashcardCollectionList.appendChild(label);
+  });
+}
+
+async function openRandomFlashcardNote() {
+  const availableNotes = await getFlashcardEligibleNotes();
+  if (!availableNotes.length) {
+    setSettingsStatus('当前没有可供闪卡回顾的笔记，请先勾选收藏夹并添加笔记');
+    return;
+  }
+
+  let pool = availableNotes;
+  if (availableNotes.length > 1 && lastFlashcardNoteId) {
+    const filtered = availableNotes.filter(note => note.id !== lastFlashcardNoteId);
+    if (filtered.length) {
+      pool = filtered;
+    }
+  }
+  const nextNote = pool[Math.floor(Math.random() * pool.length)];
+  if (!nextNote?.id) {
+    setSettingsStatus('闪卡抽取失败，请稍后再试');
+    return;
+  }
+  lastFlashcardNoteId = nextNote.id;
+  const opened = await api.invoke('app:show-flashcard-note', { noteId: nextNote.id, mode: 'read' });
+  setSettingsStatus(opened ? `闪卡回顾：${nextNote.title || formatPlannedDateTag(nextNote.plannedDate) || '未命名笔记'}` : '闪卡打开失败');
+}
+
 function formatMonthDayLabel(value) {
   const normalized = normalizePlannedDate(value);
   if (!normalized) return '';
@@ -1006,7 +1141,7 @@ function renderNotes() {
 
     const preview = document.createElement('div');
     preview.className = 'note-preview';
-    const previewText = stripHtml(note.content || '').replace(/\s+/g, ' ').trim();
+    const previewText = htmlToPlainText(note.content || '').trim();
     preview.innerHTML = highlightText(previewText, searchInput.value.trim());
     card.appendChild(preview);
 
@@ -1345,6 +1480,11 @@ function hydrateSettingsPanel() {
   shortcutInput.value = configCache.shortcut || 'Ctrl+Q';
   rememberModeToggle.checked = configCache.rememberState !== false;
   clipboardToggle.checked = configCache.readClipboardOnQuicknote === true;
+  if (flashcardEnabledToggle) {
+    flashcardEnabledToggle.checked = configCache.flashcardEnabled === true;
+  }
+  renderFlashcardCollectionList();
+  updateFlashcardButtonVisibility();
 }
 
 function setSettingsStatus(message) {
@@ -1364,7 +1504,8 @@ async function saveSettings() {
 async function saveToggleSettingsImmediately() {
   const rememberState = rememberModeToggle.checked;
   const readClipboardOnQuicknote = clipboardToggle.checked;
-  await saveConfig({ rememberState, readClipboardOnQuicknote });
+  const flashcardEnabled = flashcardEnabledToggle?.checked === true;
+  await saveConfig({ rememberState, readClipboardOnQuicknote, flashcardEnabled, flashcardConfigured: true });
   setSettingsStatus('设置已即时生效');
 }
 
@@ -1574,6 +1715,28 @@ openSettings?.addEventListener('click', event => {
   toggleSettings();
 });
 
+openFlashcard?.addEventListener('click', event => {
+  event.stopPropagation();
+  openFlashcard.classList.remove('is-bouncing');
+  void openFlashcard.offsetWidth;
+  openFlashcard.classList.add('is-bouncing');
+  openRandomFlashcardNote();
+});
+
+openFlashcard?.addEventListener('animationend', () => {
+  openFlashcard.classList.remove('is-bouncing');
+});
+
+openFlashcard?.addEventListener('mousemove', event => {
+  flashcardHoverTooltip.classList.remove('hidden');
+  flashcardHoverTooltip.style.left = `${event.clientX}px`;
+  flashcardHoverTooltip.style.top = `${event.clientY + getFlashcardTooltipOffsetY()}px`;
+});
+
+openFlashcard?.addEventListener('mouseleave', () => {
+  flashcardHoverTooltip.classList.add('hidden');
+});
+
 closeSettingsBtn?.addEventListener('click', () => {
   toggleSettings(false);
 });
@@ -1617,6 +1780,10 @@ rememberModeToggle?.addEventListener('change', () => {
 });
 
 clipboardToggle?.addEventListener('change', () => {
+  saveToggleSettingsImmediately();
+});
+
+flashcardEnabledToggle?.addEventListener('change', () => {
   saveToggleSettingsImmediately();
 });
 

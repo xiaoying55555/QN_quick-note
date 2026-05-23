@@ -43,6 +43,9 @@
           <button id="openSettings" class="icon-btn no-drag" aria-label="设置">
             <img src="./assets/icons/设置.svg" alt="" />
           </button>
+          <button id="openFlashcard" class="icon-btn no-drag flashcard-btn hidden" aria-label="闪卡回顾">
+            <img src="./assets/icons/flashcard.svg" alt="" />
+          </button>
         </div>
       </aside>
       <section class="main-area">
@@ -162,6 +165,16 @@
               <div class="settings-row">
                 <button id="openPrivateCollectionBtn" class="settings-btn">打开隐藏收藏夹</button>
               </div>
+            </section>
+            <section class="settings-card settings-card-flashcard">
+              <div class="settings-card-title">闪卡回顾</div>
+              <label class="settings-toggle">
+                <input id="flashcardEnabledToggle" type="checkbox" />
+                启用闪卡按钮
+              </label>
+              <div class="settings-label">参与闪卡回顾的收藏夹</div>
+              <div id="flashcardCollectionList" class="flashcard-collection-list"></div>
+              <div class="settings-help">只会从已勾选收藏夹中随机抽取笔记；再次点击会自动关闭上一张闪卡笔记并打开另一条。</div>
             </section>
             <section class="settings-card">
               <div class="settings-card-title">存储与备份</div>
