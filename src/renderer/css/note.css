@@ -1,3 +1,21 @@
+html {
+  --planned-note-chip-bg: #e8f4ff;
+  --planned-note-chip-color: #5a93dc;
+  --planned-note-chip-future-bg: #fff4cb;
+  --planned-note-chip-future-color: #d09a22;
+  --planned-note-calendar-accent: #8fb23e;
+  --planned-note-calendar-surface: rgba(255, 255, 255, 0.98);
+  --planned-note-calendar-border: rgba(214, 221, 196, 0.95);
+  --planned-note-calendar-shadow: 0 16px 30px rgba(29, 35, 18, 0.12);
+  --planned-note-calendar-day-size: 26px;
+  --planned-note-calendar-day-gap: 6px;
+  --planned-note-calendar-day-radius: 8px;
+  --planned-note-calendar-today-ring: #7fae2b;
+  --planned-note-calendar-today-ring-width: 2px;
+  --planned-note-calendar-selected-bg: #a2c921;
+  --planned-note-calendar-selected-color: #ffffff;
+}
+
 html,
 body {
   background: transparent;
@@ -78,6 +96,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: max-content;
   max-width: calc(100% - 120px);
   color: #8fb23e;
   font-size: 12px;
@@ -85,8 +104,18 @@ body {
   z-index: 2;
 }
 
+.note-collection-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .note-collection-select {
   max-width: 148px;
+  min-width: 0;
   border: none;
   background: transparent;
   color: #8fb23e;
@@ -96,12 +125,22 @@ body {
   text-align-last: center;
   outline: none;
   cursor: pointer;
-  padding: 0 10px 0 0;
+  padding: 0;
   appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: calc(100% - 6px) 50%, calc(100% - 2px) 50%;
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
+  width: auto;
+  flex: 0 1 auto;
+  text-overflow: clip;
+}
+
+.note-collection-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  flex: 0 0 auto;
+  transform: translateY(1px);
+  pointer-events: none;
 }
 
 .note-collection-select option {
@@ -417,6 +456,56 @@ body {
   transform: translateY(-5px);
 }
 
+.note-calendar-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(61, 68, 73, 0.78);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background 150ms var(--ease-out), color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.note-calendar-btn:hover,
+.note-calendar-btn.active {
+  background: rgba(168, 201, 64, 0.12);
+  color: var(--planned-note-calendar-accent);
+}
+
+.note-calendar-btn img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.note-date-tag {
+  max-width: 54px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--planned-note-chip-bg);
+  color: var(--planned-note-chip-color);
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.note-date-tag.hidden {
+  display: none;
+}
+
+.note-date-tag.is-future {
+  background: var(--planned-note-chip-future-bg);
+  color: var(--planned-note-chip-future-color);
+}
+
 .tag-row input {
   flex: 1;
   min-width: 0;
@@ -436,6 +525,129 @@ body {
   justify-content: space-between;
   gap: 12px;
   background: transparent;
+}
+
+.note-calendar-popover {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 52px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--planned-note-calendar-border);
+  background: var(--planned-note-calendar-surface);
+  box-shadow: var(--planned-note-calendar-shadow);
+  z-index: 7;
+}
+
+.note-calendar-popover.hidden {
+  display: none;
+}
+
+.note-calendar-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-calendar-nav-btn,
+.note-calendar-month-btn,
+.note-calendar-clear-btn {
+  height: 28px;
+  border-radius: 8px;
+  background: #f4f7ea;
+  color: #4f5d26;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.note-calendar-nav-btn {
+  width: 28px;
+  font-size: 16px;
+}
+
+.note-calendar-month-btn {
+  min-width: 92px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.note-calendar-clear-btn {
+  margin-left: auto;
+  min-width: 48px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.note-calendar-month-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.note-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, var(--planned-note-calendar-day-size));
+  justify-content: space-between;
+  margin-top: 10px;
+  color: #9aa08f;
+  font-size: 10px;
+}
+
+.note-calendar-weekdays span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, var(--planned-note-calendar-day-size));
+  gap: var(--planned-note-calendar-day-gap);
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.note-calendar-day,
+.note-calendar-day-placeholder {
+  width: var(--planned-note-calendar-day-size);
+  height: var(--planned-note-calendar-day-size);
+}
+
+.note-calendar-day {
+  border-radius: var(--planned-note-calendar-day-radius);
+  background: #eef2e6;
+  color: #56602f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  transition: transform 150ms var(--ease-out), background 150ms var(--ease-out), color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+
+.note-calendar-day:hover {
+  transform: translateY(-1px);
+  background: rgba(168, 201, 64, 0.18);
+}
+
+.note-calendar-day.is-selected {
+  background: var(--planned-note-calendar-selected-bg);
+  color: var(--planned-note-calendar-selected-color);
+  box-shadow: none;
+}
+
+.note-calendar-day.is-today {
+  box-shadow: inset 0 0 0 var(--planned-note-calendar-today-ring-width) var(--planned-note-calendar-today-ring);
+}
+
+.note-calendar-day.is-today.is-selected {
+  box-shadow: inset 0 0 0 var(--planned-note-calendar-today-ring-width) var(--planned-note-calendar-selected-bg);
 }
 
 .save-btn {

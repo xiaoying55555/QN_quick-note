@@ -59,6 +59,15 @@ function stripHtml(input) {
   return String(input || '').replace(/<[^>]*>/g, '');
 }
 
+function htmlToPlainText(input) {
+  return String(input || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p)>/gi, '\n')
+    .replace(/<(div|p)(\s[^>]*)?>/gi, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/<[^>]*>/g, '');
+}
+
 function normalizeTags(input) {
   return (Array.isArray(input) ? input : String(input || '').split(/[\uFF0C,]/))
     .map(tag => String(tag || '').trim())
@@ -139,6 +148,15 @@ const noteAttachments = document.getElementById('noteAttachments');
 const noteToolbar = document.getElementById('noteToolbar');
 const noteContent = document.getElementById('noteContent');
 const noteTags = document.getElementById('noteTags');
+const noteCalendarBtn = document.getElementById('noteCalendarBtn');
+const noteDateTag = document.getElementById('noteDateTag');
+const noteCalendarPopover = document.getElementById('noteCalendarPopover');
+const noteCalendarMonthBtn = document.getElementById('noteCalendarMonthBtn');
+const noteCalendarMonthInput = document.getElementById('noteCalendarMonthInput');
+const noteCalendarPrevBtn = document.getElementById('noteCalendarPrevBtn');
+const noteCalendarNextBtn = document.getElementById('noteCalendarNextBtn');
+const noteCalendarClearBtn = document.getElementById('noteCalendarClearBtn');
+const noteCalendarGrid = document.getElementById('noteCalendarGrid');
 const saveNoteBtn = document.getElementById('saveNoteBtn');
 const noteRecordBtn = document.getElementById('noteRecordBtn');
 const noteImageBtn = document.getElementById('noteImageBtn');
@@ -170,6 +188,8 @@ let qPressed = false;
 let popupOpacity = 1;
 let recordingPreview = null;
 let recordingTimer = null;
+let currentPlannedDate = '';
+let noteCalendarMonth = '';
 let attachmentUrlCache = new Map();
 let opacityIndicatorTimer = null;
 const HIGHLIGHT_COLOR = '#F3F198';
@@ -189,6 +209,131 @@ function getDisplayTitle(value) {
 
 function syncHeaderTitle() {
   noteHeaderTitle.textContent = getDisplayTitle(noteTitle.value);
+}
+
+function getFirstLineText(value) {
+  return String(value || '')
+    .replace(/\r/g, '')
+    .split('\n')[0]
+    .trim();
+}
+
+function padNumber(value) {
+  return String(value).padStart(2, '0');
+}
+
+function normalizePlannedDate(value) {
+  const raw = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const [year, month, day] = raw.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year
+    || date.getMonth() !== month - 1
+    || date.getDate() !== day
+  ) {
+    return '';
+  }
+  return `${year}-${padNumber(month)}-${padNumber(day)}`;
+}
+
+function createLocalDate(year, monthIndex, day) {
+  return new Date(year, monthIndex, day, 12, 0, 0, 0);
+}
+
+function getTodayKey() {
+  const today = new Date();
+  return `${today.getFullYear()}-${padNumber(today.getMonth() + 1)}-${padNumber(today.getDate())}`;
+}
+
+function getMonthKey(date = new Date()) {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}`;
+}
+
+function formatPlannedDateTag(value) {
+  const normalized = normalizePlannedDate(value);
+  if (!normalized) return '';
+  const [, month, day] = normalized.split('-');
+  return `${Number(month)}.${Number(day)}`;
+}
+
+function isPlannedDateTodayOrFuture(value) {
+  const normalized = normalizePlannedDate(value);
+  if (!normalized) return false;
+  return normalized >= getTodayKey();
+}
+
+function formatCalendarMonthLabel(monthKey) {
+  if (!monthKey) return '';
+  const [year, month] = monthKey.split('-');
+  return `${year}.${month}`;
+}
+
+function shiftMonthKey(monthKey, offset) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const shifted = new Date(year, month - 1 + offset, 1, 12, 0, 0, 0);
+  return getMonthKey(shifted);
+}
+
+function ensureNoteCalendarMonth() {
+  if (noteCalendarMonth) return noteCalendarMonth;
+  noteCalendarMonth = currentPlannedDate ? currentPlannedDate.slice(0, 7) : getMonthKey();
+  return noteCalendarMonth;
+}
+
+function renderPlannedDateTag() {
+  const label = formatPlannedDateTag(currentPlannedDate);
+  noteDateTag.textContent = label;
+  noteDateTag.classList.toggle('hidden', !label);
+  noteDateTag.classList.toggle('is-future', isPlannedDateTodayOrFuture(currentPlannedDate));
+}
+
+function renderNoteCalendarGrid() {
+  if (!noteCalendarGrid) return;
+  const monthKey = ensureNoteCalendarMonth();
+  noteCalendarMonthBtn.textContent = formatCalendarMonthLabel(monthKey);
+  noteCalendarMonthInput.value = monthKey;
+  noteCalendarGrid.innerHTML = '';
+
+  const [year, month] = monthKey.split('-').map(Number);
+  const firstDay = createLocalDate(year, month - 1, 1);
+  const firstWeekday = (firstDay.getDay() + 6) % 7;
+  const totalDays = new Date(year, month, 0).getDate();
+  const todayKey = getTodayKey();
+
+  for (let index = 0; index < firstWeekday; index += 1) {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'note-calendar-day-placeholder';
+    noteCalendarGrid.appendChild(placeholder);
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    const dateKey = `${year}-${padNumber(month)}-${padNumber(day)}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'note-calendar-day';
+    button.textContent = String(day);
+    button.classList.toggle('is-selected', currentPlannedDate === dateKey);
+    button.classList.toggle('is-today', todayKey === dateKey);
+    button.addEventListener('click', () => {
+      currentPlannedDate = currentPlannedDate === dateKey ? '' : dateKey;
+      noteCalendarMonth = dateKey.slice(0, 7);
+      renderPlannedDateTag();
+      renderNoteCalendarGrid();
+    });
+    noteCalendarGrid.appendChild(button);
+  }
+}
+
+function setCalendarPopoverOpen(isOpen) {
+  noteCalendarPopover.classList.toggle('hidden', !isOpen);
+  noteCalendarBtn?.classList.toggle('active', isOpen);
+  if (isOpen) {
+    if (currentReadOnly) {
+      setReadOnly(false);
+    }
+    renderNoteCalendarGrid();
+  }
 }
 
 function applyPopupOpacity() {
@@ -216,6 +361,10 @@ function resetNoteViewForOpen() {
   syncHeaderTitle();
   noteContent.innerHTML = '';
   noteTags.value = '';
+  currentPlannedDate = '';
+  noteCalendarMonth = '';
+  renderPlannedDateTag();
+  setCalendarPopoverOpen(false);
   attachments = [];
   noteAttachments.innerHTML = '';
   noteCollectionSelect.innerHTML = '';
@@ -700,6 +849,7 @@ function getCurrentSnapshot() {
     collectionId: currentCollectionId,
     title: noteTitle.value.trim(),
     content: noteContent.innerHTML.trim(),
+    plannedDate: currentPlannedDate,
     tags: normalizeTags(noteTags.value),
     attachments: cloneAttachments(attachments)
   };
@@ -711,6 +861,7 @@ function hasUnsavedChanges() {
   return snapshot.collectionId !== originalSnapshot.collectionId
     || snapshot.title !== originalSnapshot.title
     || snapshot.content !== originalSnapshot.content
+    || snapshot.plannedDate !== originalSnapshot.plannedDate
     || !sameList(snapshot.tags, originalSnapshot.tags)
     || !sameList(snapshot.attachments, originalSnapshot.attachments);
 }
@@ -1028,6 +1179,9 @@ async function loadNote(payload) {
   if (draft) {
     currentNoteId = null;
     renderCollectionOptions(collections);
+    currentPlannedDate = normalizePlannedDate(payload?.plannedDate);
+    noteCalendarMonth = currentPlannedDate ? currentPlannedDate.slice(0, 7) : getMonthKey();
+    renderPlannedDateTag();
     originalSnapshot = getCurrentSnapshot();
     setReadOnly(false);
     noteToolbar.classList.add('active');
@@ -1052,6 +1206,9 @@ async function loadNote(payload) {
   noteTitle.value = note.title || '';
   syncHeaderTitle();
   noteContent.innerHTML = normalizeStoredContentHtml(note.content || '');
+  currentPlannedDate = normalizePlannedDate(note.plannedDate);
+  noteCalendarMonth = currentPlannedDate ? currentPlannedDate.slice(0, 7) : getMonthKey();
+  renderPlannedDateTag();
   noteTags.value = (note.tags || []).join(', ');
   attachments = cloneAttachments(note.attachments || []);
   await prepareAttachmentAssetUrls(attachments);
@@ -1072,9 +1229,10 @@ async function loadNote(payload) {
 
 async function saveCurrentNote() {
   const contentHtml = serializeEditorHtml(noteContent);
-  const contentText = stripHtml(contentHtml).trim();
+  const contentText = htmlToPlainText(contentHtml).trim();
   const rawTitle = noteTitle.value.trim();
-  const title = rawTitle || contentText.slice(0, 20) || '\u672a\u547d\u540d';
+  const titleSource = getFirstLineText(contentText);
+  const title = rawTitle || titleSource.slice(0, 20) || '\u672a\u547d\u540d';
   const tags = normalizeTags(noteTags.value);
   if (!currentCollectionId) {
     const data = await api.invoke('data:get');
@@ -1090,6 +1248,7 @@ async function saveCurrentNote() {
       collectionId: currentCollectionId,
       title,
       content: contentHtml,
+      plannedDate: currentPlannedDate,
       attachments,
       tags
     });
@@ -1111,6 +1270,7 @@ async function saveCurrentNote() {
       collectionId: currentCollectionId,
       title,
       content: contentHtml,
+      plannedDate: currentPlannedDate,
       tags,
       attachments
     }
@@ -1305,6 +1465,48 @@ noteTagBtn?.addEventListener('click', () => {
   noteTags.focus();
 });
 
+noteCalendarBtn?.addEventListener('click', event => {
+  event.stopPropagation();
+  if (currentReadOnly) {
+    setReadOnly(false);
+  }
+  if (!noteCalendarMonth) {
+    noteCalendarMonth = currentPlannedDate ? currentPlannedDate.slice(0, 7) : getMonthKey();
+  }
+  setCalendarPopoverOpen(noteCalendarPopover.classList.contains('hidden'));
+});
+
+noteCalendarPrevBtn?.addEventListener('click', () => {
+  noteCalendarMonth = shiftMonthKey(ensureNoteCalendarMonth(), -1);
+  renderNoteCalendarGrid();
+});
+
+noteCalendarNextBtn?.addEventListener('click', () => {
+  noteCalendarMonth = shiftMonthKey(ensureNoteCalendarMonth(), 1);
+  renderNoteCalendarGrid();
+});
+
+noteCalendarMonthBtn?.addEventListener('click', () => {
+  noteCalendarMonthInput.value = ensureNoteCalendarMonth();
+  if (typeof noteCalendarMonthInput.showPicker === 'function') {
+    noteCalendarMonthInput.showPicker();
+  } else {
+    noteCalendarMonthInput.click();
+  }
+});
+
+noteCalendarMonthInput?.addEventListener('change', () => {
+  if (!noteCalendarMonthInput.value) return;
+  noteCalendarMonth = noteCalendarMonthInput.value;
+  renderNoteCalendarGrid();
+});
+
+noteCalendarClearBtn?.addEventListener('click', () => {
+  currentPlannedDate = '';
+  renderPlannedDateTag();
+  renderNoteCalendarGrid();
+});
+
 fontPlus.addEventListener('mousedown', event => {
   event.preventDefault();
 });
@@ -1400,6 +1602,12 @@ document.addEventListener('keyup', event => {
   if (event.code === 'KeyQ') {
     qPressed = false;
   }
+});
+
+document.addEventListener('mousedown', event => {
+  if (!noteCalendarPopover || noteCalendarPopover.classList.contains('hidden')) return;
+  if (noteCalendarPopover.contains(event.target) || noteCalendarBtn?.contains(event.target)) return;
+  setCalendarPopoverOpen(false);
 });
 
 window.addEventListener('blur', () => {

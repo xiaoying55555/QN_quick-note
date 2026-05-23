@@ -9,6 +9,37 @@
   --note-pin-line-height: 3px;
   --note-pin-line-top: 0px;
   --note-pin-line-color: #a2c921b1;
+  --planner-date-chip-bg: #e7f3ff;
+  --planner-date-chip-color: #5a93dc;
+  --planner-date-chip-future-bg: #fff4cb;
+  --planner-date-chip-future-color: #d09a22;
+  --planner-calendar-card-height: calc((var(--note-card-height) * 2) + var(--notes-row-gap));
+  --planner-calendar-card-padding-x: 21px;
+  --planner-calendar-card-padding-top: 18px;
+  --planner-calendar-card-padding-bottom: 20px;
+  --planner-calendar-card-header-gap: 12px;
+  --planner-calendar-card-surface: #ffffff;
+  --planner-calendar-card-month-size: 15px;
+  --planner-calendar-card-month-color: #a2c921;
+  --planner-calendar-card-today-label-size: 11px;
+  --planner-calendar-card-today-size: 56px;
+  --planner-calendar-card-today-number-size: 24px;
+  --planner-calendar-card-grid-top: 32px;
+  --planner-calendar-card-cell-size: 22px;
+  --planner-calendar-card-cell-gap-x: 10px;
+  --planner-calendar-card-cell-gap-y: 9px;
+  --planner-calendar-card-cell-radius: 5px;
+  --planner-calendar-card-cell-empty: #eeefea;
+  --planner-calendar-card-cell-done: #a2c833;
+  --planner-calendar-card-cell-future: #faa64c;
+  --planner-calendar-card-cell-empty: #eeefea;
+  --planner-calendar-card-today-border-color: #eeefea;
+  --planner-calendar-card-today-border-has-note-color: #faa64c;
+  --planner-calendar-card-today-border-width: 7px;
+  --planner-calendar-card-today-radius: 999px;
+  --planner-calendar-card-icon-size: 22px;
+  --planner-calendar-card-icon-opacity: 0.72;
+  --planner-calendar-card-grid-width: calc((var(--planner-calendar-card-cell-size) * 7) + (var(--planner-calendar-card-cell-gap-x) * 6));
 }
 
 body {
@@ -644,6 +675,10 @@ body.settings-open .main-edge-zone {
   box-shadow: 0 0 0 2px rgba(168, 201, 64, 0.55), 0 10px 20px rgba(0, 0, 0, 0.12);
 }
 
+.note-card.calendar-selected {
+  box-shadow: 0 0 0 2px rgba(168, 201, 64, 0.55), 0 10px 20px rgba(0, 0, 0, 0.12);
+}
+
 .note-card.selected::after {
   background: #A8C940;
   border-color: #A8C940;
@@ -657,6 +692,7 @@ body.settings-open .main-edge-zone {
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  flex: 0 0 auto;
 }
 
 .note-preview {
@@ -712,6 +748,17 @@ body.settings-open .main-edge-zone {
   color: #2a74d7;
 }
 
+.note-tag-chip.planner-date-chip {
+  background: var(--planner-date-chip-bg);
+  color: var(--planner-date-chip-color);
+  font-weight: 600;
+}
+
+.note-tag-chip.planner-date-chip.is-future {
+  background: var(--planner-date-chip-future-bg);
+  color: var(--planner-date-chip-future-color);
+}
+
 .note-tag-chip.pink {
   background: #fff5f8;
   color: #e97f9f;
@@ -751,6 +798,246 @@ body.settings-open .main-edge-zone {
   display: block;
   object-fit: contain;
   transform: translateY(1px);
+}
+
+.planner-calendar-card {
+  height: var(--planner-calendar-card-height);
+  grid-row: span 2;
+  padding: var(--planner-calendar-card-padding-top) var(--planner-calendar-card-padding-x) var(--planner-calendar-card-padding-bottom);
+  background: var(--planner-calendar-card-surface);
+  gap: 0;
+  position: relative;
+}
+
+.planner-calendar-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--planner-calendar-card-header-gap);
+}
+
+.planner-calendar-card-header-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.planner-calendar-card-icon {
+  width: var(--planner-calendar-card-icon-size);
+  height: var(--planner-calendar-card-icon-size);
+  display: block;
+  object-fit: contain;
+  opacity: var(--planner-calendar-card-icon-opacity);
+  margin-bottom: 0px;
+}
+
+.planner-calendar-card-month-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  background: transparent;
+  color: var(--planner-calendar-card-month-color);
+  font-size: var(--planner-calendar-card-month-size);
+  font-weight: 600;
+  line-height: 1.05;
+  text-align: left;
+}
+
+.planner-calendar-card-month-btn::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transform: translateY(1px);
+}
+
+.planner-calendar-card-month-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.planner-calendar-card-today {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 48px;
+  text-align: right;
+  color: rgba(0, 0, 0, 0.78);
+  line-height: 1;
+  font-weight: 500;
+  transform: translateY(1px);
+}
+
+.planner-calendar-card-today-value {
+  display: block;
+  font-size: calc(var(--planner-calendar-card-today-number-size) - 8px);
+  line-height: 0;
+}
+
+.planner-calendar-month-popover {
+  position: absolute;
+  top: 50px;
+  left: var(--planner-calendar-card-padding-x);
+  width: 184px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(214, 221, 196, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 30px rgba(29, 35, 18, 0.12);
+  z-index: 4;
+}
+
+.planner-calendar-month-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planner-calendar-month-nav-btn,
+.planner-calendar-month-popover-year {
+  height: 28px;
+  border-radius: 8px;
+  background: #f4f7ea;
+  color: #4f5d26;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.planner-calendar-month-nav-btn {
+  width: 28px;
+  font-size: 16px;
+}
+
+.planner-calendar-month-popover-year {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.planner-calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.planner-calendar-month-option {
+  height: 28px;
+  border-radius: 8px;
+  background: #f4f7ea;
+  color: #4f5d26;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+
+.planner-calendar-month-option:hover {
+  transform: translateY(-1px);
+}
+
+.planner-calendar-month-option.is-selected {
+  background: #a2c921;
+  color: #ffffff;
+}
+
+.planner-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, var(--planner-calendar-card-cell-size));
+  grid-auto-rows: var(--planner-calendar-card-cell-size);
+  column-gap: var(--planner-calendar-card-cell-gap-x);
+  row-gap: var(--planner-calendar-card-cell-gap-y);
+  margin-top: var(--planner-calendar-card-grid-top);
+  width: var(--planner-calendar-card-grid-width);
+  margin-left: auto;
+  margin-right: auto;
+  justify-content: start;
+}
+
+.planner-calendar-cell {
+  width: var(--planner-calendar-card-cell-size);
+  height: var(--planner-calendar-card-cell-size);
+  border-radius: var(--planner-calendar-card-cell-radius);
+  background: var(--planner-calendar-card-cell-empty);
+  box-sizing: border-box;
+  padding: 0;
+  transition: transform 140ms var(--ease-out), background 140ms var(--ease-out), border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+
+.planner-calendar-cell.is-empty {
+  background: var(--planner-calendar-card-cell-empty);
+}
+
+.planner-calendar-cell.is-complete {
+  background: var(--planner-calendar-card-cell-done);
+}
+
+.planner-calendar-cell.is-future {
+  background: var(--planner-calendar-card-cell-future);
+}
+
+.planner-calendar-cell.has-note:hover {
+  transform: scale(1.08);
+}
+
+.planner-calendar-cell.is-today:hover {
+  transform: scale(1.05);
+}
+
+.planner-calendar-cell.is-today {
+  border-radius: var(--planner-calendar-card-today-radius);
+  background: transparent;
+  border: var(--planner-calendar-card-today-border-width) solid var(--planner-calendar-card-today-border-color);
+}
+
+.planner-calendar-cell.is-today.is-complete {
+  border-color: var(--planner-calendar-card-today-border-has-note-color);
+}
+
+.planner-calendar-cell.is-today.is-future {
+  border-color: var(--planner-calendar-card-cell-future);
+}
+
+.planner-calendar-cell-placeholder {
+  background: transparent;
+}
+
+.planner-calendar-tooltip {
+  position: absolute;
+  transform: translate(-50%, 0);
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(43, 49, 24, 0.92);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 3;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
+.planner-calendar-tooltip.hidden {
+  display: none;
 }
 
 .highlight {

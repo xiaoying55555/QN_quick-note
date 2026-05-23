@@ -38,6 +38,15 @@ function stripHtml(input) {
   return String(input || '').replace(/<[^>]*>/g, '');
 }
 
+function htmlToPlainText(input) {
+  return String(input || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p)>/gi, '\n')
+    .replace(/<(div|p)(\s[^>]*)?>/gi, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/<[^>]*>/g, '');
+}
+
 async function resolveAssetUrl(relativePath) {
   return api.resolveAssetUrl(relativePath);
 }
@@ -131,6 +140,13 @@ let privatePasswordVisible = false;
 let forcedCollectionId = null;
 let privateCollectionOpening = false;
 let draggedCollectionId = null;
+const calendarCardMonthState = new Map();
+let plannerCalendarIconUrl = './assets/icons/planner-calendar.svg';
+const calendarCardTodayLabelState = new Map();
+const calendarTodayLabelTimers = new Map();
+let activeCalendarDateKey = '';
+const calendarCardMonthPickerYearState = new Map();
+let activeCalendarMonthPickerCollectionId = '';
 
 function setBuildStamp(message, isError = false) {
   if (!buildStamp) return;
@@ -217,9 +233,9 @@ async function loadConfig() {
       lastCollectionId: 'all',
       theme: 'light',
       rememberState: true,
-      readClipboardOnQuicknote: false,
-      dataPath: '',
-      autoBackupIntervalDays: 30
+    readClipboardOnQuicknote: false,
+    dataPath: '',
+    autoBackupIntervalDays: 30
     };
   }
   await loadPrivateCollectionState();
@@ -595,6 +611,322 @@ function getTagColorClass(tag) {
   return palettes[Math.abs(hash) % palettes.length];
 }
 
+function padNumber(value) {
+  return String(value).padStart(2, '0');
+}
+
+function normalizePlannedDate(value) {
+  const raw = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const [year, month, day] = raw.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  if (
+    date.getFullYear() !== year
+    || date.getMonth() !== month - 1
+    || date.getDate() !== day
+  ) {
+    return '';
+  }
+  return `${year}-${padNumber(month)}-${padNumber(day)}`;
+}
+
+function getMonthKey(date = new Date()) {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}`;
+}
+
+function shiftMonthKey(monthKey, offset) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const shifted = new Date(year, month - 1 + offset, 1, 12, 0, 0, 0);
+  return getMonthKey(shifted);
+}
+
+function formatPlannedDateTag(value) {
+  const normalized = normalizePlannedDate(value);
+  if (!normalized) return '';
+  const [, month, day] = normalized.split('-');
+  return `${Number(month)}.${Number(day)}`;
+}
+
+function formatCalendarCardMonth(monthKey) {
+  const [year, month] = monthKey.split('-');
+  return `${year}.${month}`;
+}
+
+function getTodayKey() {
+  const today = new Date();
+  return `${today.getFullYear()}-${padNumber(today.getMonth() + 1)}-${padNumber(today.getDate())}`;
+}
+
+function formatMonthDayLabel(value) {
+  const normalized = normalizePlannedDate(value);
+  if (!normalized) return '';
+  const [, month, day] = normalized.split('-');
+  return `${month}.${day}`;
+}
+
+function getFirstLineText(value) {
+  return String(value || '')
+    .replace(/\r/g, '')
+    .split('\n')[0]
+    .trim();
+}
+
+function getCurrentCollectionForCalendarCard() {
+  if (!currentCollectionId || currentCollectionId === 'all') return null;
+  return collections.find(item => item.id === currentCollectionId) || null;
+}
+
+function getCalendarCardMonth(collectionId) {
+  return calendarCardMonthState.get(collectionId) || getMonthKey();
+}
+
+function getCalendarMonthPickerYear(collectionId) {
+  const storedYear = Number(calendarCardMonthPickerYearState.get(collectionId));
+  if (Number.isFinite(storedYear)) return storedYear;
+  return Number(getCalendarCardMonth(collectionId).slice(0, 4));
+}
+
+function closeCalendarMonthPicker(shouldRender = true) {
+  if (!activeCalendarMonthPickerCollectionId) return;
+  activeCalendarMonthPickerCollectionId = '';
+  if (shouldRender) {
+    renderNotes();
+  }
+}
+
+function getPlannedNotesForCollection(collectionId) {
+  return notes.filter(note => note.collectionId === collectionId && normalizePlannedDate(note.plannedDate));
+}
+
+function createPlannerStatusMap(collectionId) {
+  const statusMap = new Map();
+  getPlannedNotesForCollection(collectionId).forEach(note => {
+    const plannedDate = normalizePlannedDate(note.plannedDate);
+    if (!plannedDate) return;
+    if (!statusMap.has(plannedDate)) {
+      statusMap.set(plannedDate, []);
+    }
+    statusMap.get(plannedDate).push(note);
+  });
+  return statusMap;
+}
+
+function isPlannerCalendarVisible() {
+  if (!currentCollectionId || currentCollectionId === 'all' || isPrivateCollectionLocked()) {
+    return false;
+  }
+  return getPlannedNotesForCollection(currentCollectionId).length > 0;
+}
+
+function setCalendarTodayLabelState(collectionId, isTodayMode) {
+  if (!collectionId) return;
+  calendarCardTodayLabelState.set(collectionId, !!isTodayMode);
+}
+
+function getCalendarTodayLabelState(collectionId) {
+  return !!calendarCardTodayLabelState.get(collectionId);
+}
+
+function scheduleCalendarTodayLabelReset(collectionId) {
+  if (!collectionId) return;
+  window.clearTimeout(calendarTodayLabelTimers.get(collectionId));
+  const timer = window.setTimeout(() => {
+    calendarTodayLabelTimers.delete(collectionId);
+    setCalendarTodayLabelState(collectionId, false);
+    renderNotes();
+  }, 2000);
+  calendarTodayLabelTimers.set(collectionId, timer);
+}
+
+function clearCalendarHighlight() {
+  if (!activeCalendarDateKey) return;
+  activeCalendarDateKey = '';
+  renderNotes();
+}
+
+function focusPlannedNoteCards(dateKey) {
+  const targetNotes = notes.filter(note => normalizePlannedDate(note.plannedDate) === dateKey);
+  if (!targetNotes.length) return false;
+  activeCalendarDateKey = dateKey;
+  renderNotes();
+  requestAnimationFrame(() => {
+    const targetCard = notesGrid.querySelector(`[data-note-id="${targetNotes[0].id}"]`);
+    targetCard?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  });
+  return true;
+}
+
+function createPlannerCalendarCard(collection) {
+  const monthKey = getCalendarCardMonth(collection.id);
+  const [year, month] = monthKey.split('-').map(Number);
+  const pickerYear = getCalendarMonthPickerYear(collection.id);
+  const today = new Date();
+  const todayKey = getTodayKey();
+  const monthStart = new Date(year, month - 1, 1, 12, 0, 0, 0);
+  const firstWeekday = (monthStart.getDay() + 6) % 7;
+  const totalDays = new Date(year, month, 0).getDate();
+  const noteStatusMap = createPlannerStatusMap(collection.id);
+
+  const card = document.createElement('div');
+  card.className = 'note-card planner-calendar-card';
+
+  const header = document.createElement('div');
+  header.className = 'planner-calendar-card-header';
+
+  const headerLeft = document.createElement('div');
+  headerLeft.className = 'planner-calendar-card-header-left';
+
+  const icon = document.createElement('img');
+  icon.className = 'planner-calendar-card-icon';
+  icon.src = plannerCalendarIconUrl;
+  icon.alt = '';
+
+  const monthBtn = document.createElement('button');
+  monthBtn.type = 'button';
+  monthBtn.className = 'planner-calendar-card-month-btn';
+  monthBtn.textContent = `${year} / ${padNumber(month)}`;
+
+  monthBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    if (activeCalendarMonthPickerCollectionId === collection.id) {
+      closeCalendarMonthPicker();
+      return;
+    }
+    calendarCardMonthPickerYearState.set(collection.id, year);
+    activeCalendarMonthPickerCollectionId = collection.id;
+    renderNotes();
+  });
+
+  headerLeft.appendChild(icon);
+  headerLeft.appendChild(monthBtn);
+
+  const todayBadge = document.createElement('div');
+  todayBadge.className = 'planner-calendar-card-today';
+  const todayValue = document.createElement('span');
+  todayValue.className = 'planner-calendar-card-today-value';
+  todayValue.textContent = formatMonthDayLabel(todayKey);
+  todayBadge.appendChild(todayValue);
+
+  header.appendChild(headerLeft);
+  header.appendChild(todayBadge);
+
+  if (activeCalendarMonthPickerCollectionId === collection.id) {
+    const monthPopover = document.createElement('div');
+    monthPopover.className = 'planner-calendar-month-popover';
+
+    const popoverHeader = document.createElement('div');
+    popoverHeader.className = 'planner-calendar-month-popover-header';
+
+    const prevYearBtn = document.createElement('button');
+    prevYearBtn.type = 'button';
+    prevYearBtn.className = 'planner-calendar-month-nav-btn';
+    prevYearBtn.innerHTML = '&#8249;';
+    prevYearBtn.setAttribute('aria-label', '上一年');
+    prevYearBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      calendarCardMonthPickerYearState.set(collection.id, pickerYear - 1);
+      renderNotes();
+    });
+
+    const yearLabel = document.createElement('div');
+    yearLabel.className = 'planner-calendar-month-popover-year';
+    yearLabel.textContent = `${pickerYear}`;
+
+    const nextYearBtn = document.createElement('button');
+    nextYearBtn.type = 'button';
+    nextYearBtn.className = 'planner-calendar-month-nav-btn';
+    nextYearBtn.innerHTML = '&#8250;';
+    nextYearBtn.setAttribute('aria-label', '下一年');
+    nextYearBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      calendarCardMonthPickerYearState.set(collection.id, pickerYear + 1);
+      renderNotes();
+    });
+
+    popoverHeader.appendChild(prevYearBtn);
+    popoverHeader.appendChild(yearLabel);
+    popoverHeader.appendChild(nextYearBtn);
+    monthPopover.appendChild(popoverHeader);
+
+    const monthGrid = document.createElement('div');
+    monthGrid.className = 'planner-calendar-month-grid';
+    for (let monthIndex = 1; monthIndex <= 12; monthIndex += 1) {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'planner-calendar-month-option';
+      option.textContent = `${monthIndex}月`;
+      const optionKey = `${pickerYear}-${padNumber(monthIndex)}`;
+      option.classList.toggle('is-selected', optionKey === monthKey);
+      option.addEventListener('click', event => {
+        event.stopPropagation();
+        calendarCardMonthState.set(collection.id, optionKey);
+        activeCalendarMonthPickerCollectionId = '';
+        renderNotes();
+      });
+      monthGrid.appendChild(option);
+    }
+    monthPopover.appendChild(monthGrid);
+    card.appendChild(monthPopover);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'planner-calendar-grid';
+  const hoverTooltip = document.createElement('div');
+  hoverTooltip.className = 'planner-calendar-tooltip hidden';
+
+  for (let index = 0; index < firstWeekday; index += 1) {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'planner-calendar-cell planner-calendar-cell-placeholder';
+    grid.appendChild(placeholder);
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    const dateKey = `${year}-${padNumber(month)}-${padNumber(day)}`;
+    const cell = document.createElement('button');
+    const hasPlannedNote = noteStatusMap.has(dateKey);
+    const isFuture = dateKey > todayKey;
+    const isToday = dateKey === todayKey;
+    cell.type = 'button';
+    cell.className = 'planner-calendar-cell';
+    cell.dataset.dateKey = dateKey;
+    cell.dataset.dateLabel = formatMonthDayLabel(dateKey);
+    cell.classList.toggle('is-empty', !hasPlannedNote);
+    cell.classList.toggle('has-note', hasPlannedNote);
+    cell.classList.toggle('is-future', hasPlannedNote && isFuture);
+    cell.classList.toggle('is-complete', hasPlannedNote && !isFuture);
+    cell.classList.toggle('is-today', isToday);
+    cell.addEventListener('click', event => {
+      event.stopPropagation();
+      if (isToday) {
+        createNewNoteAndOpen(todayKey);
+        return;
+      }
+      if (hasPlannedNote) {
+        focusPlannedNoteCards(dateKey);
+      } else {
+        renderNotes();
+      }
+    });
+    cell.addEventListener('mousemove', event => {
+      if (!hasPlannedNote && !isToday) return;
+      hoverTooltip.textContent = isToday ? 'today' : (cell.dataset.dateLabel || '');
+      hoverTooltip.classList.remove('hidden');
+      const cardRect = card.getBoundingClientRect();
+      hoverTooltip.style.left = `${event.clientX - cardRect.left}px`;
+      hoverTooltip.style.top = `${event.clientY - cardRect.top + 16}px`;
+    });
+    cell.addEventListener('mouseleave', () => {
+      hoverTooltip.classList.add('hidden');
+    });
+    grid.appendChild(cell);
+  }
+
+  card.appendChild(header);
+  card.appendChild(grid);
+  card.appendChild(hoverTooltip);
+  return card;
+}
+
 function renderNotes() {
   if (isPrivateCollectionLocked()) {
     notesGrid.innerHTML = '';
@@ -608,13 +940,21 @@ function renderNotes() {
 
   notesGrid.innerHTML = '';
   noteCount.textContent = notes.length.toString();
-  notesArea.classList.toggle('empty', notes.length === 0);
+  notesArea.classList.toggle('empty', notes.length === 0 && !isPlannerCalendarVisible());
+  if (activeCalendarDateKey && !notes.some(note => normalizePlannedDate(note.plannedDate) === activeCalendarDateKey)) {
+    activeCalendarDateKey = '';
+  }
 
+  const currentCollection = getCurrentCollectionForCalendarCard();
   const newCard = document.createElement('div');
   newCard.className = 'note-card new-note';
   newCard.dataset.noteAction = 'new';
   newCard.innerHTML = '<img src="./assets/icons/add-note-new.svg" alt="新增笔记" class="new-note-icon" /><span>NEW NOTE</span>';
   notesGrid.appendChild(newCard);
+
+  if (currentCollection && isPlannerCalendarVisible()) {
+    notesGrid.appendChild(createPlannerCalendarCard(currentCollection));
+  }
 
   notes.forEach(note => {
     const imageAttachment = (note.attachments || []).find(att => att.type === 'image');
@@ -622,6 +962,9 @@ function renderNotes() {
     const cardTypeClass = imageAttachment ? 'with-image' : 'text-card';
     card.className = `note-card ${cardTypeClass} ${sortMode === 'custom' && !selectionMode ? 'draggable' : ''}`;
     card.dataset.noteId = note.id;
+    if (activeCalendarDateKey && normalizePlannedDate(note.plannedDate) === activeCalendarDateKey) {
+      card.classList.add('calendar-selected');
+    }
 
     if (selectionMode) {
       card.classList.add('selectable');
@@ -657,7 +1000,8 @@ function renderNotes() {
 
     const title = document.createElement('div');
     title.className = 'note-title';
-    title.innerHTML = highlightText(note.title || '未命名', searchInput.value.trim());
+    const fallbackTitle = getFirstLineText(htmlToPlainText(note.content || '')).slice(0, 20);
+    title.innerHTML = highlightText(note.title || fallbackTitle || '未命名', searchInput.value.trim());
     card.appendChild(title);
 
     const preview = document.createElement('div');
@@ -671,7 +1015,16 @@ function renderNotes() {
 
     const tagWrap = document.createElement('div');
     tagWrap.className = 'note-meta-tags';
-    const firstTags = (note.tags || []).slice(0, 3);
+    const plannedTag = formatPlannedDateTag(note.plannedDate);
+    if (plannedTag) {
+      const plannedChip = document.createElement('span');
+      plannedChip.className = 'note-tag-chip planner-date-chip';
+      plannedChip.classList.toggle('is-future', normalizePlannedDate(note.plannedDate) >= getTodayKey());
+      plannedChip.textContent = plannedTag;
+      tagWrap.appendChild(plannedChip);
+    }
+    const maxTagCount = plannedTag ? 2 : 3;
+    const firstTags = (note.tags || []).slice(0, maxTagCount);
     firstTags.forEach(tag => {
       tagWrap.appendChild(createTagChip(tag, getTagColorClass(tag)));
     });
@@ -701,6 +1054,7 @@ function renderNotes() {
       }
       if (selectionMode) return;
       event.stopPropagation();
+      activeCalendarDateKey = '';
       api.invoke('app:show-note', note.id);
     });
 
@@ -727,6 +1081,7 @@ function handleNotesGridClick(event) {
   }
   const newNoteCard = event.target.closest('[data-note-action="new"]');
   if (newNoteCard) {
+    clearCalendarHighlight();
     createNewNoteAndOpen();
     return;
   }
@@ -1022,7 +1377,7 @@ async function saveBackupIntervalSettings() {
     : '自动备份已关闭');
 }
 
-async function createNewNoteAndOpen() {
+async function createNewNoteAndOpen(plannedDate = '') {
   try {
     if (isPrivateCollectionLocked()) {
       privatePasswordInput.focus();
@@ -1049,7 +1404,12 @@ async function createNewNoteAndOpen() {
       setBuildStamp('new note: no collection', true);
       return;
     }
-    const result = await api.invoke('app:show-note', { draft: true, collectionId, mode: 'edit' });
+    const result = await api.invoke('app:show-note', {
+      draft: true,
+      collectionId,
+      mode: 'edit',
+      plannedDate: normalizePlannedDate(plannedDate)
+    });
     setBuildStamp(result ? 'new note: opened' : 'new note: no response', !result);
   } catch (error) {
     setBuildStamp(`new note error: ${error.message}`, true);
@@ -1359,6 +1719,9 @@ document.addEventListener('click', event => {
   if (!sortMenu.classList.contains('hidden') && !sortMenu.contains(event.target) && event.target !== sortBtn && !sortBtn.contains(event.target)) {
     sortMenu.classList.add('hidden');
   }
+  if (!event.target.closest('.planner-calendar-month-popover') && !event.target.closest('.planner-calendar-card-month-btn')) {
+    closeCalendarMonthPicker();
+  }
   if (!collectionContextMenu.classList.contains('hidden') && !collectionContextMenu.contains(event.target)) {
     hideCollectionContextMenu();
   }
@@ -1367,6 +1730,9 @@ document.addEventListener('click', event => {
   }
   if (!collectionDeleteModal.classList.contains('hidden') && event.target === collectionDeleteModal) {
     closeDeleteCollectionModal();
+  }
+  if (!event.target.closest('.planner-calendar-card') && !event.target.closest('[data-note-id]')) {
+    clearCalendarHighlight();
   }
 });
 

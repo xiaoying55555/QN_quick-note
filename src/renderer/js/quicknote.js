@@ -584,6 +584,13 @@ function getEditorText() {
   return contentEditor.innerText.replace(/\u00a0/g, ' ').trim();
 }
 
+function getFirstLineText(value) {
+  return String(value || '')
+    .replace(/\r/g, '')
+    .split('\n')[0]
+    .trim();
+}
+
 function getEditorHtml() {
   const html = serializeEditorHtml(contentEditor);
   if (html === '<br>' || html === '<div><br></div>') return '';
@@ -659,7 +666,8 @@ async function saveNote() {
   const contentHtml = getEditorHtml();
   const contentText = getEditorText();
   const rawTitle = titleInput.value.trim();
-  const title = rawTitle || contentText.slice(0, 20) || '\u672a\u547d\u540d';
+  const titleSource = getFirstLineText(contentText);
+  const title = rawTitle || titleSource.slice(0, 20) || '\u672a\u547d\u540d';
   const collectionId = getDefaultCollectionId(collectionSelect.value);
   const noteId = noteSelect.value;
 

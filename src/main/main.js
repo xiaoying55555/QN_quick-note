@@ -248,10 +248,6 @@ function createMainWindow() {
     scheduleMainWindowLayoutRefresh(mainWindow, 40);
   });
 
-  mainWindow.on('move', () => {
-    scheduleMainWindowLayoutRefresh(mainWindow, 80);
-  });
-
   mainWindow.on('close', event => {
     if (app.isQuiting) return;
     event.preventDefault();
@@ -822,6 +818,18 @@ async function handleOcrSelection(displayId, region) {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.quicknote.app');
+  const singleInstanceLock = app.requestSingleInstanceLock();
+  if (!singleInstanceLock) {
+    app.quit();
+    return;
+  }
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
   store.getDataPaths();
   store.runScheduledBackupIfNeeded();
   store.setPrivateCollectionEnabled(false);

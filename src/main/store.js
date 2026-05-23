@@ -496,6 +496,21 @@ function attachmentsEqual(left = [], right = []) {
   return JSON.stringify(left || []) === JSON.stringify(right || []);
 }
 
+function normalizePlannedDate(value) {
+  const raw = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const [year, month, day] = raw.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year
+    || date.getMonth() !== month - 1
+    || date.getDate() !== day
+  ) {
+    return '';
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 function getCollectionGroupOrders(notes, collectionId, isPinned) {
   return notes
     .filter(note => note.collectionId === collectionId && !!note.isPinnedInCollection === !!isPinned)
@@ -524,7 +539,7 @@ function getPreferredCollectionOrder(notes, collectionId, isPinned) {
   return getNextCollectionOrder(notes, collectionId, isPinned);
 }
 
-function createNote({ collectionId, title, content, attachments = [], tags = [], order }) {
+function createNote({ collectionId, title, content, attachments = [], tags = [], plannedDate = '', order }) {
   const data = getData();
   const now = new Date().toISOString();
   const isPinnedInCollection = false;
@@ -535,6 +550,7 @@ function createNote({ collectionId, title, content, attachments = [], tags = [],
     content,
     attachments,
     tags: normalizeTags(tags),
+    plannedDate: normalizePlannedDate(plannedDate),
     createdAt: now,
     updatedAt: now,
     order: typeof order === 'number' ? order : getPreferredCollectionOrder(data.notes, collectionId, isPinnedInCollection),
@@ -580,6 +596,9 @@ function updateNote({ noteId, patch }) {
   }
   if (Object.prototype.hasOwnProperty.call(nextPatch, 'isPinnedInCollection')) {
     nextPatch.isPinnedInCollection = !!nextPatch.isPinnedInCollection;
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'plannedDate')) {
+    nextPatch.plannedDate = normalizePlannedDate(nextPatch.plannedDate);
   }
 
   const hasChanges = Object.entries(nextPatch).some(([key, value]) => {
@@ -795,6 +814,9 @@ function exportNotes(noteIds = []) {
     lines.push(`## ${title}`);
     lines.push(`- 收藏夹：${collectionName}`);
     lines.push(`- 更新时间：${note.updatedAt}`);
+    if (note.plannedDate) {
+      lines.push(`- 计划日期：${note.plannedDate}`);
+    }
     if ((note.tags || []).length) {
       lines.push(`- 标签：${note.tags.join(' / ')}`);
     }
