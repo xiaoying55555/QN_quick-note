@@ -6,6 +6,8 @@ const store = require('./store');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 
+app.disableHardwareAcceleration();
+
 const execFileAsync = promisify(execFile);
 
 let mainWindow;
@@ -17,6 +19,7 @@ const noteWindows = new Map();
 let activeFlashcardWindowKey = '';
 let noteFloatingResetTimer = null;
 let mainWindowLayoutRefreshTimer = null;
+let mainWindowStartupFallbackTimer = null;
 
 const QUICKNOTE_WIDTH = 419;
 const QUICKNOTE_HEIGHT = 391;
@@ -32,6 +35,16 @@ const APP_ICON_PATH = path.join(__dirname, '../renderer/assets/app-logo.png');
 
 function getRuntimeAppIcon() {
   return fs.existsSync(APP_ICON_PATH) ? APP_ICON_PATH : undefined;
+}
+
+function logMainProcessEvent(message) {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'startup.log');
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    fs.appendFileSync(logPath, line, 'utf8');
+  } catch (_error) {
+    // Ignore logging failures to avoid breaking startup.
+  }
 }
 
 function createWindowOptions(extra = {}) {
@@ -243,12 +256,51 @@ function createMainWindow() {
     show: false
   }));
 
+  if (mainWindowStartupFallbackTimer) {
+    clearTimeout(mainWindowStartupFallbackTimer);
+    mainWindowStartupFallbackTimer = null;
+  }
+
+  logMainProcessEvent(`createMainWindow width=${initialMetrics.width} height=${initialMetrics.height} scale=${initialMetrics.scale.toFixed(3)}`);
   mainWindow.loadFile(path.join(__dirname, '../renderer/main.html'));
 
   mainWindow.once('ready-to-show', () => {
+    logMainProcessEvent('mainWindow ready-to-show');
     applyMainWindowNormalLayout(mainWindow);
     mainWindow.show();
+    if (mainWindowStartupFallbackTimer) {
+      clearTimeout(mainWindowStartupFallbackTimer);
+      mainWindowStartupFallbackTimer = null;
+    }
   });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    logMainProcessEvent('mainWindow did-finish-load');
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    logMainProcessEvent(`mainWindow did-fail-load code=${errorCode} mainFrame=${isMainFrame} url=${validatedURL} error=${errorDescription}`);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logMainProcessEvent(`mainWindow render-process-gone reason=${details?.reason || 'unknown'} exitCode=${details?.exitCode ?? 'unknown'}`);
+  });
+
+  mainWindow.on('unresponsive', () => {
+    logMainProcessEvent('mainWindow unresponsive');
+  });
+
+  mainWindowStartupFallbackTimer = setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return;
+    logMainProcessEvent('mainWindow startup fallback show');
+    try {
+      applyMainWindowNormalLayout(mainWindow);
+      mainWindow.show();
+      mainWindow.focus();
+    } catch (error) {
+      logMainProcessEvent(`mainWindow startup fallback error=${error.message}`);
+    }
+  }, 6000);
 
   mainWindow.on('focus', () => {
     syncFloatingNoteWindows(true);
@@ -276,6 +328,13 @@ function createMainWindow() {
     if (app.isQuiting) return;
     event.preventDefault();
     mainWindow.hide();
+  });
+
+  mainWindow.on('closed', () => {
+    if (mainWindowStartupFallbackTimer) {
+      clearTimeout(mainWindowStartupFallbackTimer);
+      mainWindowStartupFallbackTimer = null;
+    }
   });
 }
 
@@ -863,12 +922,15 @@ async function handleOcrSelection(displayId, region) {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.quicknote.app');
+  logMainProcessEvent('app whenReady');
   const singleInstanceLock = app.requestSingleInstanceLock();
   if (!singleInstanceLock) {
+    logMainProcessEvent('single instance lock denied');
     app.quit();
     return;
   }
   app.on('second-instance', () => {
+    logMainProcessEvent('app second-instance');
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -910,6 +972,10 @@ app.on('before-quit', () => {
   if (mainWindowLayoutRefreshTimer) {
     clearTimeout(mainWindowLayoutRefreshTimer);
     mainWindowLayoutRefreshTimer = null;
+  }
+  if (mainWindowStartupFallbackTimer) {
+    clearTimeout(mainWindowStartupFallbackTimer);
+    mainWindowStartupFallbackTimer = null;
   }
   store.setPrivateCollectionEnabled(false);
 });
@@ -1030,6 +1096,14 @@ ipcMain.handle('app:minimize-main', event => {
   }
   return false;
 });
+ipcMain.handle('app:close-main', event => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (senderWindow) {
+    senderWindow.close();
+    return true;
+  }
+  return false;
+});
 ipcMain.handle('app:toggle-main-expanded', event => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   if (!senderWindow) return false;
@@ -1046,6 +1120,7 @@ ipcMain.handle('app:open-data-path', async () => {
   const result = await shell.openPath(store.getDataDir());
   return result === '';
 });
+ipcMain.handle('app:resolve-asset-path', (_event, relativePath) => store.resolveAssetPath(relativePath));
 ipcMain.handle('app:set-note-pin', (event, isPinned) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
   if (senderWindow) {
@@ -1123,6 +1198,21 @@ ipcMain.handle('data:save-config', (_event, config) => {
   const saved = store.saveConfig(config);
   registerShortcut();
   return saved;
+});
+ipcMain.handle('data:choose-storage-path', async () => {
+  const result = await dialog.showOpenDialog({
+    defaultPath: store.getDataDir(),
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return { status: 'canceled', dataDir: store.getDataDir() };
+  }
+  const changed = store.changeDataDir(result.filePaths[0]);
+  if (changed.status === 'changed') {
+    registerShortcut();
+    broadcast('data:updated');
+  }
+  return changed;
 });
 ipcMain.handle('data:get-private-state', () => store.getPrivateCollectionState());
 ipcMain.handle('data:ensure-private-collection', () => {

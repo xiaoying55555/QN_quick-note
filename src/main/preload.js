@@ -14,8 +14,10 @@ const invokeChannels = new Set([
   'app:update-note-window-context',
   'app:resize-note-window',
   'app:minimize-main',
+  'app:close-main',
   'app:toggle-main-expanded',
   'app:open-data-path',
+  'app:resolve-asset-path',
   'app:set-note-pin',
   'app:show-image-viewer',
   'app:hide-image-viewer',
@@ -23,6 +25,7 @@ const invokeChannels = new Set([
   'data:search',
   'data:get-config',
   'data:save-config',
+  'data:choose-storage-path',
   'data:get-private-state',
   'data:ensure-private-collection',
   'data:set-private-enabled',
@@ -65,8 +68,7 @@ const bridge = {
     return () => ipcRenderer.removeListener(channel, listener);
   },
   async resolveAssetUrl(relativePath) {
-    const documentsPath = await ipcRenderer.invoke('app:get-path', 'documents');
-    const fullPath = path.join(documentsPath, 'QuickNote', relativePath);
+    const fullPath = await ipcRenderer.invoke('app:resolve-asset-path', relativePath);
     return `file://${fullPath.replace(/\\/g, '/')}`;
   },
   readClipboardImage() {
