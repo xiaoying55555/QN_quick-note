@@ -70,6 +70,9 @@
               <img src="./assets/icons/选择.svg" alt="" />
             </button>
             <button id="minimizeBtn" class="icon-btn no-drag" aria-label="最小化">
+              <img src="./assets/icons/min.svg" alt="" />
+            </button>
+            <button id="closeMainBtn" class="icon-btn no-drag" aria-label="关闭">
               <img src="./assets/icons/右上角缩小关闭按键.svg" alt="" />
             </button>
           </div>
@@ -178,8 +181,14 @@
             </section>
             <section class="settings-card">
               <div class="settings-card-title">存储与备份</div>
-              <div class="settings-label">存储路径</div>
-              <div id="dataPathValue" class="settings-value"></div>
+              <div class="settings-path-row">
+                <div class="settings-path-copy">
+                  <div class="settings-label">存储路径</div>
+                  <div id="dataPathValue" class="settings-value"></div>
+                </div>
+                <button id="changeDataPathBtn" class="settings-btn settings-path-btn">更改路径</button>
+              </div>
+              <div class="settings-help">切换路径时旧目录默认保留，避免误丢内容。</div>
               <div class="settings-label">自动备份间隔（天）</div>
               <div class="settings-row">
                 <input id="backupIntervalInput" class="settings-input" type="number" min="0" step="1" placeholder="30" />
@@ -187,7 +196,6 @@
               </div>
               <div class="settings-help">填写 0 可关闭自动备份；应用启动时会检查是否到期。</div>
               <div class="settings-row wrap">
-                <button id="openDataFolderBtn" class="settings-btn">打开文件夹</button>
                 <button id="backupDataBtn" class="settings-btn">创建备份</button>
                 <button id="importBackupBtn" class="settings-btn">导入备份</button>
               </div>
@@ -197,6 +205,53 @@
           <div id="settingsStatus" class="settings-status"></div>
         </div>
       </aside>
+      <div id="onboardingOverlay" class="onboarding-overlay hidden">
+        <div class="onboarding-hint onboarding-hint-settings">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">设置</div>
+            <div class="onboarding-copy">在这里管理快捷键、存储路径、备份与其他功能</div>
+          </div>
+        </div>
+        <div class="onboarding-hint onboarding-hint-flashcard">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">闪卡</div>
+            <div class="onboarding-copy">这里会随机打开一条笔记供你复习</div>
+          </div>
+        </div>
+        <div class="onboarding-hint onboarding-hint-search">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">搜索</div>
+            <div class="onboarding-copy">输入关键词，快速查找标题、正文与标签相关内容</div>
+          </div>
+        </div>
+        <div class="onboarding-hint onboarding-hint-sort">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">排序</div>
+            <div class="onboarding-copy">可切换时间排序或自定义排序，按你的习惯管理笔记</div>
+          </div>
+        </div>
+        <div class="onboarding-hint onboarding-hint-select">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">选择</div>
+            <div class="onboarding-copy">可批量移动、导出、合并或删除笔记</div>
+          </div>
+        </div>
+        <div class="onboarding-hint onboarding-hint-add-collection">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">新增收藏夹</div>
+            <div class="onboarding-copy">点击这里创建新的收藏夹</div>
+          </div>
+        </div>
+        <div class="onboarding-hint onboarding-hint-new-note">
+          <div class="onboarding-bubble">
+            <div class="onboarding-title">新增笔记</div>
+            <div class="onboarding-copy">从这里开始记录新的笔记</div>
+          </div>
+        </div>
+        <div class="onboarding-actions">
+          <button id="dismissOnboardingBtn" class="onboarding-dismiss-btn">我明白了</button>
+        </div>
+      </div>
       <div id="buildStamp" class="build-stamp"></div>
     </div>
     <script src="./js/main.js"></script>

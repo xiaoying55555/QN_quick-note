@@ -4,8 +4,33 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
-function getDataDir() {
+function getDefaultDataDir() {
   return path.join(app.getPath('documents'), 'QuickNote');
+}
+
+function getStorageStatePath() {
+  return path.join(app.getPath('userData'), 'storage.json');
+}
+
+function normalizeDirPath(dirPath) {
+  const raw = String(dirPath || '').trim();
+  if (!raw) return '';
+  return path.resolve(raw);
+}
+
+function readStorageState() {
+  return readJson(getStorageStatePath(), {}) || {};
+}
+
+function writeStorageState(data) {
+  const statePath = getStorageStatePath();
+  ensureDir(path.dirname(statePath));
+  writeJson(statePath, data);
+}
+
+function getDataDir() {
+  const storedPath = normalizeDirPath(readStorageState().dataDir);
+  return storedPath || getDefaultDataDir();
 }
 
 function ensureDir(dirPath) {
@@ -48,6 +73,13 @@ function writeJson(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+function isQuickNoteDataDir(dirPath) {
+  if (!dirPath || !fs.existsSync(dirPath)) return false;
+  const dataPath = path.join(dirPath, 'data.json');
+  const configPath = path.join(dirPath, 'config.json');
+  return fs.existsSync(dataPath) && fs.existsSync(configPath);
+}
+
 function hashPassword(password) {
   return crypto.createHash('sha256').update(String(password || ''), 'utf8').digest('hex');
 }
@@ -62,6 +94,13 @@ function removeDirContents(dirPath) {
 
 function getBackupRoot() {
   return path.join(getDataDir(), 'backups');
+}
+
+function isChildPath(parentPath, candidatePath) {
+  const relativePath = path.relative(parentPath, candidatePath);
+  return relativePath !== ''
+    && !relativePath.startsWith('..')
+    && !path.isAbsolute(relativePath);
 }
 
 function createTempWorkspace(prefix) {
@@ -168,6 +207,7 @@ function ensureStore() {
       flashcardEnabled: true,
       flashcardCollectionIds: [],
       flashcardConfigured: false,
+      onboardingCompleted: false,
       privateCollectionEnabled: false,
       privateCollectionId: '',
       privateCollectionPasswordHash: ''
@@ -212,6 +252,7 @@ function ensureStore() {
         flashcardEnabled: true,
         flashcardCollectionIds: [],
         flashcardConfigured: false,
+        onboardingCompleted: false,
         privateCollectionEnabled: false,
         privateCollectionId: '',
         privateCollectionPasswordHash: ''
@@ -450,6 +491,7 @@ function getConfig() {
     flashcardEnabled: true,
     flashcardCollectionIds: [],
     flashcardConfigured: false,
+    onboardingCompleted: false,
     privateCollectionEnabled: false,
     privateCollectionId: '',
     privateCollectionPasswordHash: ''
@@ -486,6 +528,9 @@ function getConfig() {
   if (typeof config.flashcardConfigured !== 'boolean') {
     config.flashcardConfigured = false;
   }
+  if (typeof config.onboardingCompleted !== 'boolean') {
+    config.onboardingCompleted = false;
+  }
   if (typeof config.privateCollectionEnabled !== 'boolean') {
     config.privateCollectionEnabled = false;
   }
@@ -495,13 +540,21 @@ function getConfig() {
   if (typeof config.privateCollectionPasswordHash !== 'string') {
     config.privateCollectionPasswordHash = '';
   }
+  if (config.dataPath !== dataDir) {
+    config.dataPath = dataDir;
+    writeJson(configPath, config);
+  }
   return config;
 }
 
 function saveConfig(config) {
   const { configPath } = ensureStore();
-  writeJson(configPath, config);
-  return config;
+  const nextConfig = {
+    ...config,
+    dataPath: getDataDir()
+  };
+  writeJson(configPath, nextConfig);
+  return nextConfig;
 }
 
 function stripHtml(input) {
@@ -775,6 +828,54 @@ function runScheduledBackupIfNeeded() {
   return backupPath;
 }
 
+function changeDataDir(nextDir) {
+  const currentDir = normalizeDirPath(getDataDir());
+  const targetDir = normalizeDirPath(nextDir);
+  if (!targetDir) {
+    return { status: 'invalid', dataDir: currentDir };
+  }
+  if (targetDir === currentDir) {
+    return { status: 'same', dataDir: currentDir };
+  }
+  if (isChildPath(currentDir, targetDir) || isChildPath(targetDir, currentDir)) {
+    return { status: 'nested', dataDir: currentDir };
+  }
+
+  try {
+    ensureStore();
+    if (
+      fs.existsSync(targetDir)
+      && fs.readdirSync(targetDir).length > 0
+      && !isQuickNoteDataDir(targetDir)
+    ) {
+      return { status: 'not-empty', dataDir: currentDir };
+    }
+
+    ensureDir(targetDir);
+    copyDir(currentDir, targetDir);
+    writeStorageState({ dataDir: targetDir });
+
+    const targetConfigPath = path.join(targetDir, 'config.json');
+    const migratedConfig = readJson(targetConfigPath, {}) || {};
+    writeJson(targetConfigPath, {
+      ...migratedConfig,
+      dataPath: targetDir
+    });
+
+    return {
+      status: 'changed',
+      dataDir: targetDir,
+      previousDataDir: currentDir
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      dataDir: currentDir,
+      message: error.message
+    };
+  }
+}
+
 function importBackup(backupDir) {
   const sourceInputPath = String(backupDir || '').trim();
   if (!sourceInputPath) return null;
@@ -946,6 +1047,7 @@ module.exports = {
   deleteNotes,
   createBackup,
   runScheduledBackupIfNeeded,
+  changeDataDir,
   importBackup,
   moveNotes,
   exportNotes

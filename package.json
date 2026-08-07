@@ -32,7 +32,10 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/app-icon.ico"
     },
     "nsis": {

@@ -14,8 +14,7 @@
         return () => ipcRenderer.removeListener(channel, listener);
       },
       async resolveAssetUrl(relativePath) {
-        const documentsPath = await ipcRenderer.invoke('app:get-path', 'documents');
-        const fullPath = path.join(documentsPath, 'QuickNote', relativePath);
+        const fullPath = await ipcRenderer.invoke('app:resolve-asset-path', relativePath);
         return `file://${fullPath.replace(/\\/g, '/')}`;
       }
     };
@@ -51,6 +50,25 @@ async function resolveAssetUrl(relativePath) {
   return api.resolveAssetUrl(relativePath);
 }
 
+function getStoragePathStatusMessage(result) {
+  switch (result?.status) {
+    case 'same':
+      return '存储路径未变化';
+    case 'invalid':
+      return '所选路径无效，请重新选择';
+    case 'nested':
+      return '新路径不能与当前存储路径互为上级或下级';
+    case 'not-empty':
+      return '目标文件夹不为空，请选择一个空文件夹';
+    case 'canceled':
+      return '未更改存储路径';
+    case 'error':
+      return result.message ? `切换失败：${result.message}` : '切换存储路径失败，请稍后重试';
+    default:
+      return '';
+  }
+}
+
 const collectionList = document.getElementById('collectionList');
 const notesGrid = document.getElementById('notesGrid');
 const searchInput = document.getElementById('searchInput');
@@ -59,6 +77,7 @@ const sortBtn = document.getElementById('sortBtn');
 const sortMenu = document.getElementById('sortMenu');
 const selectBtn = document.getElementById('selectBtn');
 const minimizeBtn = document.getElementById('minimizeBtn');
+const closeMainBtn = document.getElementById('closeMainBtn');
 const openSettings = document.getElementById('openSettings');
 const openFlashcard = document.getElementById('openFlashcard');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
@@ -89,9 +108,9 @@ const cancelSelectionBtn = document.getElementById('cancelSelectionBtn');
 const deleteSelectionBtn = document.getElementById('deleteSelectionBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const dataPathValue = document.getElementById('dataPathValue');
+const changeDataPathBtn = document.getElementById('changeDataPathBtn');
 const backupIntervalInput = document.getElementById('backupIntervalInput');
 const saveBackupIntervalBtn = document.getElementById('saveBackupIntervalBtn');
-const openDataFolderBtn = document.getElementById('openDataFolderBtn');
 const backupDataBtn = document.getElementById('backupDataBtn');
 const importBackupBtn = document.getElementById('importBackupBtn');
 const shortcutInput = document.getElementById('shortcutInput');
@@ -108,6 +127,8 @@ const sidebarCollections = document.querySelector('.sidebar-collections');
 const collectionScroll = document.getElementById('collectionScroll');
 const sidebarFooter = document.querySelector('.sidebar-footer');
 const logo = document.querySelector('.logo');
+const onboardingOverlay = document.getElementById('onboardingOverlay');
+const dismissOnboardingBtn = document.getElementById('dismissOnboardingBtn');
 const privateCollectionGate = document.getElementById('privateCollectionGate');
 const privateCollectionTitle = document.getElementById('privateCollectionTitle');
 const privateCollectionCopy = document.getElementById('privateCollectionCopy');
@@ -142,6 +163,7 @@ let privateCollectionUnlocked = false;
 let privatePasswordVisible = false;
 let forcedCollectionId = null;
 let privateCollectionOpening = false;
+let onboardingDismissed = false;
 let draggedCollectionId = null;
 const calendarCardMonthState = new Map();
 let plannerCalendarIconUrl = './assets/icons/planner-calendar.svg';
@@ -246,7 +268,8 @@ async function loadConfig() {
       autoBackupIntervalDays: 30,
       flashcardEnabled: true,
       flashcardCollectionIds: [],
-      flashcardConfigured: false
+      flashcardConfigured: false,
+      onboardingCompleted: false
     };
   }
   await loadPrivateCollectionState();
@@ -1471,6 +1494,7 @@ function toggleSettings(force) {
   settingsPanel.classList.toggle('hidden', !settingsOpen);
   openSettings.classList.toggle('active', settingsOpen);
   document.body.classList.toggle('settings-open', settingsOpen);
+  updateOnboardingVisibility();
 }
 
 function hydrateSettingsPanel() {
@@ -1489,6 +1513,21 @@ function hydrateSettingsPanel() {
 
 function setSettingsStatus(message) {
   settingsStatus.textContent = message;
+}
+
+function updateOnboardingVisibility() {
+  const shouldShow = !!onboardingOverlay
+    && !settingsOpen
+    && !isPrivateCollectionLocked()
+    && configCache?.onboardingCompleted !== true
+    && !onboardingDismissed;
+  onboardingOverlay?.classList.toggle('hidden', !shouldShow);
+}
+
+async function dismissOnboarding() {
+  onboardingDismissed = true;
+  await saveConfig({ onboardingCompleted: true });
+  updateOnboardingVisibility();
 }
 
 async function saveSettings() {
@@ -1685,7 +1724,7 @@ sortBtn?.addEventListener('click', event => {
   sortMenu.classList.toggle('hidden');
 });
 
-[sortBtn, selectBtn, minimizeBtn].forEach(button => {
+[sortBtn, selectBtn, minimizeBtn, closeMainBtn].forEach(button => {
   button?.addEventListener('mousedown', event => {
     event.stopPropagation();
   });
@@ -1741,9 +1780,19 @@ closeSettingsBtn?.addEventListener('click', () => {
   toggleSettings(false);
 });
 
-openDataFolderBtn?.addEventListener('click', async () => {
-  const result = await api.invoke('app:open-data-path');
-  setSettingsStatus(result ? '已打开存储文件夹' : '打开失败，请稍后重试');
+changeDataPathBtn?.addEventListener('click', async () => {
+  const result = await api.invoke('data:choose-storage-path');
+  if (result?.status === 'changed') {
+    await loadConfig();
+    hydrateSettingsPanel();
+    await loadData();
+    setSettingsStatus(`存储路径已切换到：${result.dataDir}`);
+    return;
+  }
+  const message = getStoragePathStatusMessage(result);
+  if (message) {
+    setSettingsStatus(message);
+  }
 });
 
 openPrivateCollectionBtn?.addEventListener('click', () => {
@@ -1751,6 +1800,7 @@ openPrivateCollectionBtn?.addEventListener('click', () => {
 });
 
 backupDataBtn?.addEventListener('click', async () => {
+  setSettingsStatus('正在创建备份，请稍候...');
   const backupPath = await api.invoke('data:create-backup');
   setSettingsStatus(backupPath ? `备份已创建：${backupPath}` : '备份失败');
 });
@@ -1903,6 +1953,16 @@ document.addEventListener('click', event => {
   }
 });
 
+closeMainBtn?.addEventListener('click', async event => {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await api.invoke('app:close-main');
+  } catch (error) {
+    setBuildStamp(`close error: ${error.message}`, true);
+  }
+});
+
 api.on('data:updated', async () => {
   if (privateCollectionOpening) return;
   const shouldRestorePrivateView = privateCollectionEnabled && currentCollectionId === privateCollectionId;
@@ -1913,6 +1973,7 @@ api.on('data:updated', async () => {
     privateCollectionUnlocked = true;
   }
   await loadData();
+  updateOnboardingVisibility();
 });
 
 async function init() {
@@ -1924,10 +1985,15 @@ async function init() {
     await loadData();
     renderSortMenu();
     updateScrollIndicator();
+    updateOnboardingVisibility();
     setBuildStamp(`ready ${new Date().toLocaleTimeString()}`);
   } catch (error) {
     setBuildStamp(`init error: ${error.message}`, true);
   }
 }
+
+dismissOnboardingBtn?.addEventListener('click', async () => {
+  await dismissOnboarding();
+});
 
 init();
