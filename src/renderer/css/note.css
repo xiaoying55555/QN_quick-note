@@ -248,6 +248,27 @@ body {
   width: 100%;
 }
 
+.attachment-item.is-pending-removal .attachment-thumb-btn,
+.attachment-item.is-pending-removal .audio-chip {
+  filter: grayscale(1);
+  opacity: 0.42;
+}
+
+.attachment-item.is-pending-removal .attachment-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+  background: rgba(108, 116, 90, 0.72);
+}
+
+.attachment-item.is-pending-removal .attachment-thumb-btn:hover,
+.attachment-item.is-pending-removal .audio-chip:hover {
+  transform: none;
+}
+
+.attachment-item.is-pending-removal .audio-chip {
+  background: rgba(201, 206, 190, 0.8);
+}
+
 .attachment-item.dragging {
   opacity: 0.68;
 }

@@ -79,6 +79,14 @@ function cloneAttachments(list = []) {
   return list.map(item => ({ ...item }));
 }
 
+function clonePersistableAttachments(list = []) {
+  return list.map(item => {
+    const cloned = { ...item };
+    delete cloned.pendingRemoval;
+    return cloned;
+  });
+}
+
 function sameList(left = [], right = []) {
   return JSON.stringify(left || []) === JSON.stringify(right || []);
 }
@@ -203,6 +211,12 @@ let editorHistoryIndex = -1;
 let suppressEditorHistory = false;
 let pendingHistoryFrame = 0;
 let savedEditorSelection = null;
+let currentWindowRole = 'default';
+let autoSaveTimer = 0;
+let isClosingNote = false;
+let localDataUpdateSkips = 0;
+let saveRequestChain = Promise.resolve(null);
+const AUTO_SAVE_DELAY = 520;
 
 function getDisplayTitle(value) {
   return String(value || '').trim() || '\u65b0\u5efa\u7b14\u8bb0';
@@ -289,6 +303,21 @@ function renderPlannedDateTag() {
   noteDateTag.classList.toggle('is-future', isPlannedDateTodayOrFuture(currentPlannedDate));
 }
 
+function clearScheduledAutoSave() {
+  if (!autoSaveTimer) return;
+  window.clearTimeout(autoSaveTimer);
+  autoSaveTimer = 0;
+}
+
+function scheduleAutoSave(delay = AUTO_SAVE_DELAY) {
+  if (isClosingNote) return;
+  clearScheduledAutoSave();
+  autoSaveTimer = window.setTimeout(() => {
+    autoSaveTimer = 0;
+    saveCurrentNote().catch(() => {});
+  }, delay);
+}
+
 function renderNoteCalendarGrid() {
   if (!noteCalendarGrid) return;
   const monthKey = ensureNoteCalendarMonth();
@@ -321,6 +350,7 @@ function renderNoteCalendarGrid() {
       noteCalendarMonth = dateKey.slice(0, 7);
       renderPlannedDateTag();
       renderNoteCalendarGrid();
+      scheduleAutoSave();
     });
     noteCalendarGrid.appendChild(button);
   }
@@ -357,6 +387,8 @@ function setNoteBodyLoadingState(isLoading) {
 }
 
 function resetNoteViewForOpen() {
+  clearScheduledAutoSave();
+  isClosingNote = false;
   attachmentUrlCache = new Map();
   noteTitle.value = '';
   syncHeaderTitle();
@@ -578,6 +610,7 @@ function applyTrackedEditorMutation(mutator) {
   const changed = runWithEditorSelection(mutator);
   if (!changed) return false;
   pushEditorHistory();
+  scheduleAutoSave();
   return true;
 }
 
@@ -852,7 +885,7 @@ function getCurrentSnapshot() {
     content: noteContent.innerHTML.trim(),
     plannedDate: currentPlannedDate,
     tags: normalizeTags(noteTags.value),
-    attachments: cloneAttachments(attachments)
+    attachments: clonePersistableAttachments(attachments)
   };
 }
 
@@ -917,6 +950,7 @@ function updateAttachmentRemark(path, remark) {
   const target = attachments.find(item => item.type === 'image' && item.path === path);
   if (!target) return;
   target.remark = remark || '';
+  scheduleAutoSave();
 }
 
 function unwrapElement(element) {
@@ -1027,8 +1061,14 @@ async function prepareAttachmentAssetUrls(list = []) {
   attachmentUrlCache = nextCache;
 }
 
-function removeAttachmentAt(index) {
-  attachments.splice(index, 1);
+function hasPendingAttachmentRemovals() {
+  return attachments.some(item => item?.pendingRemoval);
+}
+
+function toggleAttachmentPendingRemoval(index) {
+  const target = attachments[index];
+  if (!target || target.isPending) return;
+  target.pendingRemoval = !target.pendingRemoval;
   stopActiveAudio();
   renderAttachments();
 }
@@ -1046,16 +1086,17 @@ function moveAttachmentWithinType(fromIndex, toIndex, type) {
   const adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
   attachments.splice(adjustedTarget, 0, moved);
   renderAttachments();
+  scheduleAutoSave();
 }
 
 function createAttachmentDeleteButton(index) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'attachment-delete-btn';
-  button.textContent = '×';
+  button.textContent = '\u00d7';
   button.addEventListener('click', event => {
     event.stopPropagation();
-    removeAttachmentAt(index);
+    toggleAttachmentPendingRemoval(index);
   });
   return button;
 }
@@ -1098,6 +1139,7 @@ function renderAttachments() {
       const attachmentIndex = attachments.indexOf(att);
       const wrapper = document.createElement('div');
       wrapper.className = 'attachment-item';
+      wrapper.classList.toggle('is-pending-removal', !!att.pendingRemoval);
       const thumbButton = document.createElement('button');
       thumbButton.type = 'button';
       thumbButton.className = 'attachment-thumb-btn';
@@ -1114,11 +1156,17 @@ function renderAttachments() {
       }
       thumbButton.appendChild(img);
       thumbButton.addEventListener('click', () => {
+        if (att.pendingRemoval) {
+          toggleAttachmentPendingRemoval(attachmentIndex);
+          return;
+        }
         openImageViewer(imageAttachments, index);
       });
       wrapper.appendChild(thumbButton);
       wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
-      wireAttachmentDrag(wrapper, 'image', index);
+      if (!att.pendingRemoval) {
+        wireAttachmentDrag(wrapper, 'image', index);
+      }
       imageRow.appendChild(wrapper);
     });
     noteAttachments.appendChild(imageRow);
@@ -1132,6 +1180,7 @@ function renderAttachments() {
     audioItems.forEach((att, index) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'attachment-item';
+      wrapper.classList.toggle('is-pending-removal', !!att.pendingRemoval);
       const button = document.createElement('button');
       button.type = 'button';
       if (att.isPending) {
@@ -1147,10 +1196,16 @@ function renderAttachments() {
         button.className = 'audio-chip';
         button.innerHTML = `<span class="audio-chip-label">\u5f55\u97f3</span><span class="audio-chip-time">${formatDuration(att.duration || 0)}</span>`;
         button.addEventListener('click', () => {
+          if (att.pendingRemoval) {
+            toggleAttachmentPendingRemoval(attachmentIndex);
+            return;
+          }
           playAudioAttachment(att, button);
         });
         wrapper.appendChild(createAttachmentDeleteButton(attachmentIndex));
-        wireAttachmentDrag(wrapper, 'audio', recordingPreview ? index - 1 : index);
+        if (!att.pendingRemoval) {
+          wireAttachmentDrag(wrapper, 'audio', recordingPreview ? index - 1 : index);
+        }
       }
       wrapper.appendChild(button);
       audioRow.appendChild(wrapper);
@@ -1173,6 +1228,7 @@ async function loadNote(payload) {
   const mode = typeof payload === 'string' ? 'read' : payload?.mode || 'read';
   const draft = typeof payload === 'string' ? false : !!payload?.draft;
   const windowRole = typeof payload === 'object' && payload?.windowRole ? payload.windowRole : 'default';
+  currentWindowRole = windowRole;
   const data = await api.invoke('data:get');
   const collections = data.collections || [];
 
@@ -1230,7 +1286,25 @@ async function loadNote(payload) {
   }
 }
 
-async function saveCurrentNote() {
+async function invokeDataMutation(channel, payload) {
+  localDataUpdateSkips += 1;
+  try {
+    return await api.invoke(channel, payload);
+  } catch (error) {
+    localDataUpdateSkips = Math.max(0, localDataUpdateSkips - 1);
+    throw error;
+  }
+}
+
+async function persistCurrentNote(options = {}) {
+  const { commitPendingRemovals = false } = options;
+  let rollbackAttachments = null;
+  let committedPendingRemovals = false;
+  if (commitPendingRemovals && hasPendingAttachmentRemovals()) {
+    rollbackAttachments = cloneAttachments(attachments);
+    attachments = attachments.filter(item => !item.pendingRemoval);
+    committedPendingRemovals = true;
+  }
   const contentHtml = serializeEditorHtml(noteContent);
   const contentText = htmlToPlainText(contentHtml).trim();
   const rawTitle = noteTitle.value.trim();
@@ -1242,44 +1316,83 @@ async function saveCurrentNote() {
     currentCollectionId = data.collections?.find(item => item.isDefault)?.id || data.collections?.[0]?.id || null;
   }
 
-  if (!rawTitle && !contentText && attachments.length === 0) {
+  if (isDraft && !rawTitle && !contentText && attachments.length === 0) {
+    if (committedPendingRemovals) {
+      renderAttachments();
+    }
     return null;
   }
 
-  if (isDraft) {
-    const created = await api.invoke('data:create-note', {
-      collectionId: currentCollectionId,
-      title,
-      content: contentHtml,
-      plannedDate: currentPlannedDate,
-      attachments,
-      tags
-    });
-    isDraft = false;
-    currentNoteId = created.id;
-    await api.invoke('app:update-note-window-context', { noteId: created.id, windowRole });
-    await loadNote({ noteId: created.id, mode: 'edit', windowRole });
-    return created;
-  }
-
-  if (!currentNoteId) return null;
-  if (!hasUnsavedChanges()) {
-    return { id: currentNoteId, unchanged: true };
-  }
-
-  const updated = await api.invoke('data:update-note', {
-    noteId: currentNoteId,
-    patch: {
-      collectionId: currentCollectionId,
-      title,
-      content: contentHtml,
-      plannedDate: currentPlannedDate,
-      tags,
-      attachments
+  try {
+    if (isDraft) {
+      const created = await invokeDataMutation('data:create-note', {
+        collectionId: currentCollectionId,
+        title,
+        content: contentHtml,
+        plannedDate: currentPlannedDate,
+        attachments: clonePersistableAttachments(attachments),
+        tags
+      });
+      isDraft = false;
+      currentNoteId = created.id;
+      await api.invoke('app:update-note-window-context', { noteId: created.id, windowRole: currentWindowRole });
+      await loadNote({ noteId: created.id, mode: 'edit', windowRole: currentWindowRole });
+      return created;
     }
-  });
-  originalSnapshot = getCurrentSnapshot();
-  return updated;
+
+    if (!currentNoteId) return null;
+    if (!hasUnsavedChanges()) {
+      if (committedPendingRemovals) {
+        renderAttachments();
+      }
+      return { id: currentNoteId, unchanged: true };
+    }
+
+    const updated = await invokeDataMutation('data:update-note', {
+      noteId: currentNoteId,
+      patch: {
+        collectionId: currentCollectionId,
+        title,
+        content: contentHtml,
+        plannedDate: currentPlannedDate,
+        tags,
+        attachments: clonePersistableAttachments(attachments)
+      }
+    });
+    originalSnapshot = getCurrentSnapshot();
+    if (committedPendingRemovals) {
+      renderAttachments();
+    }
+    return updated;
+  } catch (error) {
+    if (rollbackAttachments) {
+      attachments = rollbackAttachments;
+      renderAttachments();
+    }
+    throw error;
+  }
+}
+
+function saveCurrentNote(options = {}) {
+  saveRequestChain = saveRequestChain
+    .catch(() => null)
+    .then(() => persistCurrentNote(options));
+  return saveRequestChain;
+}
+
+async function requestCloseNote() {
+  if (isClosingNote) return;
+  isClosingNote = true;
+  clearScheduledAutoSave();
+  stopActiveAudio();
+  try {
+    await saveCurrentNote({ commitPendingRemovals: true });
+    await api.invoke('app:hide-note');
+  } catch (_error) {
+    isClosingNote = false;
+    return;
+  }
+  isClosingNote = false;
 }
 
 async function handlePaste(event) {
@@ -1289,6 +1402,7 @@ async function handlePaste(event) {
     const savedImage = await api.invoke('data:save-image', { buffer: imageBytes, extension: 'png' });
     attachments.push({ type: 'image', ...savedImage });
     renderAttachments();
+    scheduleAutoSave();
     return;
   }
   const plainText = event.clipboardData?.getData('text/plain');
@@ -1315,6 +1429,7 @@ async function startRecording() {
     stopRecordingPreview();
     attachments.push({ type: 'audio', path: savedPath, duration });
     renderAttachments();
+    scheduleAutoSave();
     stream.getTracks().forEach(track => track.stop());
     recorder = null;
     isRecording = false;
@@ -1350,6 +1465,7 @@ pinBtn.addEventListener('click', () => {
 
 noteCollectionSelect.addEventListener('change', () => {
   currentCollectionId = noteCollectionSelect.value;
+  scheduleAutoSave();
 });
 
 api.on('image-viewer:remark-updated', payload => {
@@ -1358,16 +1474,19 @@ api.on('image-viewer:remark-updated', payload => {
 
 noteTitle.addEventListener('input', () => {
   syncHeaderTitle();
+  scheduleAutoSave();
 });
 
-closeNote.addEventListener('click', async () => {
-  stopActiveAudio();
-  api.invoke('app:hide-note');
+noteTags.addEventListener('input', () => {
+  scheduleAutoSave();
 });
+
+closeNote.addEventListener('click', requestCloseNote);
 
 saveNoteBtn.addEventListener('click', async () => {
+  clearScheduledAutoSave();
   triggerSaveFeedback(saveNoteBtn);
-  await saveCurrentNote();
+  await saveCurrentNote({ commitPendingRemovals: true });
 });
 
 noteContent.addEventListener('dblclick', () => {
@@ -1400,6 +1519,7 @@ noteContent.addEventListener('paste', handlePaste);
 noteContent.addEventListener('input', () => {
   queueHistorySnapshot();
   rememberEditorSelection();
+  scheduleAutoSave();
 });
 
 document.addEventListener('selectionchange', () => {
@@ -1432,6 +1552,7 @@ noteImageBtn.addEventListener('click', async () => {
   const savedImage = await api.invoke('data:save-image', { buffer, extension: ext });
   attachments.push({ type: 'image', ...savedImage, ext });
   renderAttachments();
+  scheduleAutoSave();
 });
 
 noteHighlightBtn.addEventListener('mousedown', event => {
@@ -1508,6 +1629,7 @@ noteCalendarClearBtn?.addEventListener('click', () => {
   currentPlannedDate = '';
   renderPlannedDateTag();
   renderNoteCalendarGrid();
+  scheduleAutoSave();
 });
 
 fontPlus.addEventListener('mousedown', event => {
@@ -1549,6 +1671,10 @@ api.on('note:open', payload => {
 });
 
 api.on('data:updated', () => {
+  if (localDataUpdateSkips > 0) {
+    localDataUpdateSkips -= 1;
+    return;
+  }
   if (currentNoteId && !isDraft && !hasUnsavedChanges()) {
     api.invoke('app:get-note-window-payload')
       .then(payload => {
@@ -1598,13 +1724,13 @@ document.addEventListener('keydown', event => {
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
+    clearScheduledAutoSave();
     triggerSaveFeedback(saveNoteBtn);
-    saveCurrentNote();
+    saveCurrentNote({ commitPendingRemovals: true });
     return;
   }
   if (event.key === 'Escape') {
-    stopActiveAudio();
-    api.invoke('app:hide-note');
+    requestCloseNote();
   }
 });
 
