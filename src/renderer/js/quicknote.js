@@ -156,6 +156,43 @@ let recordingPreview = null;
 let recordingTimer = null;
 const HIGHLIGHT_COLOR = '#F3F198';
 let opacityIndicatorTimer = null;
+let savedQuicknoteSession = null;
+let quicknoteSaveChain = Promise.resolve(false);
+
+function cloneQuicknoteAttachments(list = []) {
+  return list.map(item => ({ ...item }));
+}
+
+function getSaveSnapshot({ collectionId, noteId, title, content, attachments: attachmentList }) {
+  return {
+    collectionId,
+    noteId,
+    title,
+    content,
+    attachments: cloneQuicknoteAttachments(attachmentList)
+  };
+}
+
+function isSameSaveSnapshot(left, right) {
+  return !!left
+    && !!right
+    && left.collectionId === right.collectionId
+    && left.noteId === right.noteId
+    && left.title === right.title
+    && left.content === right.content
+    && JSON.stringify(left.attachments || []) === JSON.stringify(right.attachments || []);
+}
+
+function clearSavedQuicknoteSession() {
+  savedQuicknoteSession = null;
+}
+
+function buildAppendedContent(baseContent, incomingContent) {
+  const previousContent = String(baseContent || '').trim();
+  const nextContent = String(incomingContent || '').trim();
+  const separator = previousContent && nextContent ? '<br>' : '';
+  return `${previousContent}${separator}${nextContent}`;
+}
 
 function stopActiveAudio() {
   if (currentAudioPlayer) {
@@ -550,6 +587,7 @@ function renderAttachments() {
 }
 
 function resetForm({ preserveCollection = true } = {}) {
+  clearSavedQuicknoteSession();
   const currentCollectionId = preserveCollection ? collectionSelect.value : getDefaultCollectionId();
   contentEditor.innerHTML = '';
   titleInput.value = '';
@@ -673,20 +711,74 @@ async function saveNote() {
 
   if (!rawTitle && !contentText && attachments.length === 0) return false;
 
-  if (noteId === 'new') {
-    await api.invoke('data:create-note', {
+  const snapshot = getSaveSnapshot({
+    collectionId,
+    noteId,
+    title,
+    content: contentHtml,
+    attachments
+  });
+
+  if (isSameSaveSnapshot(savedQuicknoteSession?.snapshot, snapshot)) {
+    contentEditor.focus();
+    return true;
+  }
+
+  if (savedQuicknoteSession?.type === 'created' && savedQuicknoteSession.noteId) {
+    await api.invoke('data:update-note', {
+      noteId: savedQuicknoteSession.noteId,
+      patch: {
+        collectionId,
+        title,
+        content: contentHtml,
+        attachments: cloneQuicknoteAttachments(attachments),
+        tags: []
+      }
+    });
+    savedQuicknoteSession.snapshot = snapshot;
+  } else if (noteId === 'new') {
+    const created = await api.invoke('data:create-note', {
       collectionId,
       title,
       content: contentHtml,
       attachments,
       tags: []
     });
+    savedQuicknoteSession = {
+      type: 'created',
+      noteId: created?.id || '',
+      snapshot
+    };
   } else {
-    await api.invoke('data:append-note', {
+    let baseContent = '';
+    let baseAttachments = [];
+    if (
+      savedQuicknoteSession?.type === 'append'
+      && savedQuicknoteSession.noteId === noteId
+      && savedQuicknoteSession.collectionId === collectionId
+    ) {
+      baseContent = savedQuicknoteSession.baseContent;
+      baseAttachments = cloneQuicknoteAttachments(savedQuicknoteSession.baseAttachments || []);
+    } else {
+      const baseNote = notes.find(note => note.id === noteId);
+      baseContent = baseNote?.content || '';
+      baseAttachments = cloneQuicknoteAttachments(baseNote?.attachments || []);
+    }
+    await api.invoke('data:update-note', {
       noteId,
-      content: contentHtml,
-      attachments
+      patch: {
+        content: buildAppendedContent(baseContent, contentHtml),
+        attachments: [...baseAttachments, ...cloneQuicknoteAttachments(attachments)]
+      }
     });
+    savedQuicknoteSession = {
+      type: 'append',
+      noteId,
+      collectionId,
+      baseContent,
+      baseAttachments,
+      snapshot
+    };
   }
 
   const config = await api.invoke('data:get-config');
@@ -695,16 +787,24 @@ async function saveNote() {
     lastCollectionId: collectionId
   });
 
-  resetForm();
-  setMode('mini');
+  contentEditor.focus();
   return true;
 }
 
-async function saveAndClose() {
-  const saved = await saveNote();
-  if (!saved) return false;
-  api.invoke('app:hide-quicknote');
-  return true;
+function saveCurrentQuicknote() {
+  const shouldCloseAfterSave = currentMode === 'mini';
+  quicknoteSaveChain = quicknoteSaveChain
+    .catch(() => false)
+    .then(async () => {
+      const saved = await saveNote();
+      if (saved && shouldCloseAfterSave) {
+        resetForm();
+        setMode('mini');
+        await api.invoke('app:hide-quicknote');
+      }
+      return saved;
+    });
+  return quicknoteSaveChain;
 }
 
 function applyShowPayload(payload = {}) {
@@ -740,11 +840,13 @@ window.addEventListener('wheel', event => {
 }, { passive: false });
 
 collectionSelect.addEventListener('change', () => {
+  clearSavedQuicknoteSession();
   renderNotes();
   syncCompactSelectWidth(collectionSelect);
 });
 
 noteSelect.addEventListener('change', () => {
+  clearSavedQuicknoteSession();
   syncCompactSelectWidth(noteSelect);
 });
 
@@ -769,7 +871,7 @@ contentEditor.addEventListener('keydown', async event => {
     event.preventDefault();
     event.stopPropagation();
     triggerSaveFeedback(saveQuicknoteBtn);
-    await saveAndClose();
+    await saveCurrentQuicknote();
     return;
   }
 });
@@ -808,7 +910,7 @@ document.addEventListener('keydown', async event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     triggerSaveFeedback(saveQuicknoteBtn);
-    await saveAndClose();
+    await saveCurrentQuicknote();
   }
 });
 
@@ -853,7 +955,7 @@ boldBtn.addEventListener('click', () => {
 
 saveQuicknoteBtn?.addEventListener('click', async () => {
   triggerSaveFeedback(saveQuicknoteBtn);
-  await saveAndClose();
+  await saveCurrentQuicknote();
 });
 
 api.on('data:updated', () => loadData(collectionSelect.value));
